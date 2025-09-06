@@ -1,36 +1,155 @@
-import android.graphics.*
+package com.example.capstone.ui.screens
+
+import android.app.Activity
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
-import java.io.ByteArrayOutputStream
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
+import com.example.capstone.CameraPreviewWithCapture
+import java.util.concurrent.Executor
+import java.util.concurrent.Executors
 
-fun imageProxyToBitmap(image: ImageProxy): Bitmap {
-    val yBuffer = image.planes[0].buffer // Y
-    val uBuffer = image.planes[1].buffer // U
-    val vBuffer = image.planes[2].buffer // V
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ScanScreen(navController: NavController) {
+    val context = LocalContext.current
+    val executor = remember { Executors.newSingleThreadExecutor() }
 
-    val ySize = yBuffer.remaining()
-    val uSize = uBuffer.remaining()
-    val vSize = vBuffer.remaining()
+    val imageCapture = remember { ImageCapture.Builder().build() }
 
-    val nv21 = ByteArray(ySize + uSize + vSize)
+    var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
-    // U and V are swapped for NV21
-    yBuffer.get(nv21, 0, ySize)
-    vBuffer.get(nv21, ySize, vSize)
-    uBuffer.get(nv21, ySize + vSize, uSize)
-
-    val yuvImage = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
-    val out = ByteArrayOutputStream()
-    yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 100, out)
-    val yuv = out.toByteArray()
-
-    var bitmap = BitmapFactory.decodeByteArray(yuv, 0, yuv.size)
-
-    // 🔄 Fix rotation from camera sensor
-    val rotationDegrees = image.imageInfo.rotationDegrees
-    if (rotationDegrees != 0) {
-        val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
-        bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val uri = result.data?.data
+            uri?.let {
+                val bitmap = if (Build.VERSION.SDK_INT < 28) {
+                    MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                } else {
+                    val source = ImageDecoder.createSource(context.contentResolver, uri)
+                    ImageDecoder.decodeBitmap(source)
+                }
+                capturedBitmap = bitmap
+            }
+        }
     }
 
-    return bitmap
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF00C8A0)),
+        verticalArrangement = Arrangement.SpaceBetween,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(40.dp))
+        Text("Body Scan", fontSize = 24.sp, color = Color.Black)
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .aspectRatio(0.6f)
+                .clip(RoundedCornerShape(40.dp))
+                .border(2.dp, Color.Black, RoundedCornerShape(40.dp))
+        ) {
+            if (capturedBitmap == null) {
+                CameraPreviewWithCapture(imageCapture, Modifier.fillMaxSize())
+            } else {
+                Image(bitmap = capturedBitmap!!.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxSize())
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            if (capturedBitmap == null) {
+                IconButton(
+                    onClick = {
+                        takePhoto(imageCapture, executor) { bitmap ->
+                            capturedBitmap = bitmap
+                        }
+                    },
+                    modifier = Modifier
+                        .size(60.dp)
+                        .background(Color(0xFF00816C), shape = CircleShape)
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = "Capture", tint = Color.White)
+                }
+
+                Button(onClick = {
+                    val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+                    galleryLauncher.launch(intent)
+                }) {
+                    Text("Gallery")
+                }
+            } else {
+                Button(onClick = {
+                    navController.currentBackStackEntry?.savedStateHandle?.set("capturedBitmap", capturedBitmap)
+                    navController.navigate("result")
+                }) {
+                    Text("Confirm")
+                }
+                Button(onClick = {
+                    capturedBitmap = null
+                }) {
+                    Text("Retake")
+                }
+            }
+        }
+    }
+}
+
+fun takePhoto(imageCapture: ImageCapture, executor: Executor, onPhotoTaken: (Bitmap) -> Unit) {
+    imageCapture.takePicture(
+        executor,
+        object : ImageCapture.OnImageCapturedCallback() {
+            override fun onCaptureSuccess(image: ImageProxy) {
+                val bitmap = imageProxyToBitmap(image)
+                image.close()
+                onPhotoTaken(bitmap)
+            }
+
+            override fun onError(exception: ImageCaptureException) {
+                exception.printStackTrace()
+            }
+        }
+    )
+}
+
+fun imageProxyToBitmap(image: ImageProxy): Bitmap {
+    val buffer = image.planes[0].buffer
+    val bytes = ByteArray(buffer.capacity())
+    buffer.get(bytes)
+    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
 }
