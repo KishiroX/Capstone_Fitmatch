@@ -52,12 +52,12 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                // ✅ This matches ScanScreen(navController: NavController)
+                // This matches ScanScreen(navController: NavController)
                 composable("scan") {
                     ScanScreen(navController = navController)
                 }
 
-                // ✅ This matches ResultScreen(navController: NavController)
+                // This matches ResultScreen(navController: NavController)
                 composable("result") {
                     ResultScreen(navController = navController)
                 }

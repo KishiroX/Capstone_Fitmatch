@@ -32,7 +32,7 @@ fun ScanScreen(navController: NavController) {
 
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
-    // 📂 Launcher for picking image from gallery
+    // Launcher for picking image from gallery
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
@@ -75,7 +75,7 @@ fun ScanScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 📸 Capture button
+        // Capture button
         Button(
             onClick = {
                 imageCapture.takePicture(
@@ -107,7 +107,7 @@ fun ScanScreen(navController: NavController) {
             Text("Capture", color = Color(0xFF00C8A0))
         }
 
-        // 📂 Gallery button
+        //  Gallery button
         Button(
             onClick = { galleryLauncher.launch("image/*") },
             colors = ButtonDefaults.buttonColors(containerColor = Color.White),
@@ -121,9 +121,7 @@ fun ScanScreen(navController: NavController) {
     }
 }
 
-/**
- * Convert ImageProxy to Bitmap
- */
+
 fun imageProxyToBitmap(image: ImageProxy): Bitmap? {
     val planeProxy = image.planes.firstOrNull() ?: return null
     val buffer: ByteBuffer = planeProxy.buffer

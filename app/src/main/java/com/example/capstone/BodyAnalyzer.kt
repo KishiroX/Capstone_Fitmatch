@@ -15,10 +15,7 @@ class BodyAnalyzer(private val context: Context) {
 
     private lateinit var landmarker: PoseLandmarker
 
-    /**
-     * Loads the Mediapipe Pose Landmarker model.
-     * Make sure `pose_landmarker_lite.task` is inside `app/src/main/assets/`
-     */
+
     fun loadModel() {
         val options = PoseLandmarker.PoseLandmarkerOptions.builder()
             .setBaseOptions(
@@ -33,9 +30,7 @@ class BodyAnalyzer(private val context: Context) {
         println("✅ Pose model loaded successfully.")
     }
 
-    /**
-     * Runs Mediapipe pose detection on a bitmap.
-     */
+
     fun analyze(bitmap: Bitmap): PoseLandmarkerResult? {
         return try {
             if (!::landmarker.isInitialized) loadModel()
@@ -58,9 +53,7 @@ class BodyAnalyzer(private val context: Context) {
         }
     }
 
-    /**
-     * Calculates body measurements from landmarks.
-     */
+
     fun calculateFullBodyComposition(
         bitmap: Bitmap,
         result: PoseLandmarkerResult?
@@ -94,11 +87,12 @@ class BodyAnalyzer(private val context: Context) {
 
         val skinColor = estimateSkinColor(bitmap, ls.x(), ls.y())
 
-        // 🔹 Ratios
+        // Ratios
         val shoulderToHip = if (hipWidth > 0) shoulderWidth / hipWidth else 0f
         val torsoToLeg = if (legLength > 0) torsoLength / legLength else 0f
         val armToLeg = if (legLength > 0) armLength / legLength else 0f
-        val shoulderToHeight = if ((torsoLength + legLength) > 0) shoulderWidth / (torsoLength + legLength) else 0f
+        val shoulderToHeight = if ((torsoLength + legLength) > 0)
+            shoulderWidth / (torsoLength + legLength) else 0f
 
         return mapOf(
             "Shoulder Width" to shoulderWidth,
@@ -108,7 +102,7 @@ class BodyAnalyzer(private val context: Context) {
             "Arm Length" to armLength,
             "Estimated Skin Color" to skinColor,
 
-            // ✅ Ratios
+            // Ratios
             "Shoulder-to-Hip Ratio" to shoulderToHip,
             "Torso-to-Leg Ratio" to torsoToLeg,
             "Arm-to-Leg Ratio" to armToLeg,
@@ -117,9 +111,7 @@ class BodyAnalyzer(private val context: Context) {
     }
 
 
-    /**
-     * Estimates skin color near the left shoulder landmark.
-     */
+
     private fun estimateSkinColor(bitmap: Bitmap, xNorm: Float, yNorm: Float): String {
         val xCenter = (xNorm * bitmap.width).toInt().coerceIn(1, bitmap.width - 2)
         val yCenter = (yNorm * bitmap.height).toInt().coerceIn(1, bitmap.height - 2)
