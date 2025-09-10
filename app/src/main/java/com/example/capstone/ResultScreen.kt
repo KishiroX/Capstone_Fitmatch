@@ -33,9 +33,7 @@ fun ResultScreen(navController: NavController) {
             ?.get<Bitmap>("capturedBitmap")
     }
     val resultData = remember { mutableStateOf<Map<String, Any>>(emptyMap()) }
-//armanasdasdasasdsadd
 
-    //akonaman123
     LaunchedEffect(savedBitmap) {
         savedBitmap?.let { bitmap ->
             val bodyData = withContext(Dispatchers.Default) {
