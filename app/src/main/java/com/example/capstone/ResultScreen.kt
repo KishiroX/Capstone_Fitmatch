@@ -33,7 +33,7 @@ fun ResultScreen(navController: NavController) {
             ?.get<Bitmap>("capturedBitmap")
     }
     val resultData = remember { mutableStateOf<Map<String, Any>>(emptyMap()) }
-//asdfasdffaasdfasdf
+//armand
 
     //akonaman123
     LaunchedEffect(savedBitmap) {
