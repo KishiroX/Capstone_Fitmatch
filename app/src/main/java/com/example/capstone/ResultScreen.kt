@@ -34,7 +34,7 @@ fun ResultScreen(navController: NavController) {
     }
 
     val resultData = remember { mutableStateOf<Map<String, Any>>(emptyMap()) }
-//lalalala
+//lala
     LaunchedEffect(savedBitmap) {
         savedBitmap?.let { bitmap ->
             val bodyData = withContext(Dispatchers.Default) {
