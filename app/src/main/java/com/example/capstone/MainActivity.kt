@@ -7,7 +7,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.navigation.compose.*
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.example.capstone.ui.screens.LoginScreen
 import com.example.capstone.ui.screens.ResultScreen
 import com.example.capstone.ui.screens.SignUpScreen
@@ -18,10 +20,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Request permissions before anything else
+        // Request permissions if not already granted
         if (!hasRequiredPermissions()) {
             ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, 0)
-            return // Prevent setContent from loading before permissions are granted
         }
 
         setContent {
@@ -32,7 +33,6 @@ class MainActivity : ComponentActivity() {
                 composable("login") {
                     LoginScreen(
                         onLoginClick = { _, _ ->
-                            // Navigate to scan after login (for testing)
                             navController.navigate("scan")
                         },
                         onRegisterClick = {
@@ -44,7 +44,6 @@ class MainActivity : ComponentActivity() {
                 composable("signup") {
                     SignUpScreen(
                         onSignUpClick = { _, _, _, _, _, _ ->
-                            // Navigate to scan after successful signup
                             navController.navigate("scan")
                         },
                         onAlreadyHaveAccountClick = {
@@ -53,15 +52,16 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                // This matches ScanScreen(navController: NavController)
                 composable("scan") {
-                    ScanScreen(navController)
+                    ScanScreen(navController = navController)
                 }
+
+                // This matches ResultScreen(navController: NavController)
                 composable("result") {
-                    ResultScreen(navController)
+                    ResultScreen(navController = navController)
                 }
-
             }
-
         }
     }
 
@@ -73,8 +73,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private val REQUIRED_PERMISSIONS = arrayOf(
-            Manifest.permission.CAMERA,
-            Manifest.permission.RECORD_AUDIO
+            Manifest.permission.CAMERA
         )
     }
 }
