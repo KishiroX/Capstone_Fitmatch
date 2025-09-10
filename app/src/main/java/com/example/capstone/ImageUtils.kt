@@ -8,9 +8,7 @@ import androidx.camera.core.ImageProxy
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
-/**
- * Convert [ImageProxy] (YUV_420_888) to [Bitmap].
- */
+
 fun imageProxyToBitmap(image: ImageProxy): Bitmap {
     val nv21 = yuv420888ToNv21(image)
     val yuvImage = YuvImage(
@@ -26,9 +24,7 @@ fun imageProxyToBitmap(image: ImageProxy): Bitmap {
     return android.graphics.BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size)
 }
 
-/**
- * Convert YUV_420_888 ImageProxy to NV21 byte array.
- */
+
 private fun yuv420888ToNv21(image: ImageProxy): ByteArray {
     val yBuffer: ByteBuffer = image.planes[0].buffer
     val uBuffer: ByteBuffer = image.planes[1].buffer
