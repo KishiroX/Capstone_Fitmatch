@@ -4,155 +4,236 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.material.*
+import androidx.compose.material.TextFieldDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.input.*
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.tooling.preview.Preview
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun SignUpScreen(
-    onSignUpClick: (String, String, String, String, String, String) -> Unit = { _, _, _, _, _, _ -> },
+    onSignUpClick: (String, String, String) -> Unit = { _, _, _ -> },
     onAlreadyHaveAccountClick: () -> Unit = {}
 ) {
-    var fullName by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
-    var mobile by remember { mutableStateOf("") }
-    var dob by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
+    var showPassword by remember { mutableStateOf(false) }
+    var showConfirmPassword by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(false) }
 
-    Box(
+    val isFormValid = name.isNotEmpty() && email.isNotEmpty() &&
+            password.isNotEmpty() && confirmPassword.isNotEmpty()
+    val scope = rememberCoroutineScope()
+
+    fun handleSignUp() {
+        if (password != confirmPassword) {
+            println("Passwords do not match")
+            return
+        }
+        loading = true
+        scope.launch {
+            delay(1500) // simulate network call
+            onSignUpClick(name, email, password)
+            loading = false
+        }
+    }
+
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF00C39A))
+            .background(Color.White)
     ) {
-        Column(
+        // Header Gradient
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 100.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxWidth()
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(Color(0xFF10B981), Color(0xFF059669))
+                    )
+                )
+                .padding(vertical = 32.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "Create Account",
-                fontSize = 28.sp,
-                color = Color.White
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.White, shape = RoundedCornerShape(topStart = 60.dp, topEnd = 60.dp))
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                OutlinedTextField(
-                    value = fullName,
-                    onValueChange = { fullName = it },
-                    label = { Text("Full Name") },
-                    placeholder = { Text("example@example.com") },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                )
-
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("Email") },
-                    placeholder = { Text("example@example.com") },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                )
-
-                OutlinedTextField(
-                    value = mobile,
-                    onValueChange = { mobile = it },
-                    label = { Text("Mobile Number") },
-                    placeholder = { Text("+63 123 456 789") },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                )
-
-                OutlinedTextField(
-                    value = dob,
-                    onValueChange = { dob = it },
-                    label = { Text("Date of Birth") },
-                    placeholder = { Text("DD / MM / YYYY") },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                )
-
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("Password") },
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        val icon = if (passwordVisible) "🙈" else "👁️"
-                        Text(
-                            text = icon,
-                            modifier = Modifier.clickable { passwordVisible = !passwordVisible }
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                )
-
-                OutlinedTextField(
-                    value = confirmPassword,
-                    onValueChange = { confirmPassword = it },
-                    label = { Text("Confirm Password") },
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        val icon = if (passwordVisible) "🙈" else "👁️"
-                        Text(
-                            text = icon,
-                            modifier = Modifier.clickable { passwordVisible = !passwordVisible }
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = "By continuing, you agree to our Terms of Use and Privacy Policy.",
-                    fontSize = 12.sp,
-                    color = Color.Gray
+                    "Create Account",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Button(
-                    onClick = {
-                        onSignUpClick(fullName, email, mobile, dob, password, confirmPassword)
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(30.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00C39A))
-                ) {
-                    Text("Next")
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
                 Text(
-                    text = "Already have an account? Log In",
+                    "Join the style community today",
                     fontSize = 14.sp,
-                    color = Color(0xFF00C39A),
-                    modifier = Modifier.clickable { onAlreadyHaveAccountClick() }
+                    color = Color(0xFFC6F6D5)
                 )
             }
         }
-    }
-}
 
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-fun SignUpScreenPreview() {
-    SignUpScreen()
+        // Form Card
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .offset(y = (-24).dp)
+                .background(Color.White, shape = RoundedCornerShape(24.dp))
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Full Name
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                placeholder = { Text("Enter your full name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    textColor = Color.Black,
+                    focusedBorderColor = Color(0xFF10B981),
+                    unfocusedBorderColor = Color(0xFFD1D5DB),
+                    cursorColor = Color(0xFF10B981),
+                    placeholderColor = Color.Gray
+                )
+            )
+
+            // Email
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
+                placeholder = { Text("Enter your email") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    textColor = Color.Black,
+                    focusedBorderColor = Color(0xFF10B981),
+                    unfocusedBorderColor = Color(0xFFD1D5DB),
+                    cursorColor = Color(0xFF10B981),
+                    placeholderColor = Color.Gray
+                )
+            )
+
+            // Password
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    placeholder = { Text("Create a password") },
+                    singleLine = true,
+                    visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                        textColor = Color.Black,
+                        focusedBorderColor = Color(0xFF10B981),
+                        unfocusedBorderColor = Color(0xFFD1D5DB),
+                        cursorColor = Color(0xFF10B981),
+                        placeholderColor = Color.Gray
+                    )
+                )
+                Text(
+                    if (showPassword) "Hide" else "Show",
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 16.dp)
+                        .clickable { showPassword = !showPassword },
+                    color = Color.Gray
+                )
+            }
+
+            // Confirm Password
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = confirmPassword,
+                    onValueChange = { confirmPassword = it },
+                    placeholder = { Text("Confirm your password") },
+                    singleLine = true,
+                    visualTransformation = if (showConfirmPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                        textColor = Color.Black,
+                        focusedBorderColor = Color(0xFF10B981),
+                        unfocusedBorderColor = Color(0xFFD1D5DB),
+                        cursorColor = Color(0xFF10B981),
+                        placeholderColor = Color.Gray
+                    )
+                )
+                Text(
+                    if (showConfirmPassword) "Hide" else "Show",
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 16.dp)
+                        .clickable { showConfirmPassword = !showConfirmPassword },
+                    color = Color.Gray
+                )
+            }
+
+            // Sign Up Button
+            Button(
+                onClick = { handleSignUp() },
+                enabled = isFormValid && !loading,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981))
+            ) {
+                if (loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("Create Account", color = Color.White)
+                }
+            }
+
+            // Already have account
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text("Already have an account? ", color = Color.Gray)
+                Text(
+                    "Sign In",
+                    color = Color(0xFF10B981),
+                    modifier = Modifier.clickable { onAlreadyHaveAccountClick() },
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        // Terms
+        Spacer(modifier = Modifier.height(16.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .background(Color(0xFFF0FDF4), RoundedCornerShape(12.dp))
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "By creating an account, you agree to our Terms of Service and Privacy Policy",
+                color = Color.Gray,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
 }

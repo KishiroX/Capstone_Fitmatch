@@ -4,124 +4,220 @@ package com.example.capstone.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.*
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.tooling.preview.Preview
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(
     onLoginClick: (String, String) -> Unit = { _, _ -> },
-    onRegisterClick: () -> Unit = {}
+    onRegisterClick: () -> Unit = {},
+    onForgotPasswordClick: () -> Unit = {}
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
+    var showPassword by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF00C39A)) // Teal green background
+            .background(Color.White)
     ) {
-        Column(
+        // Header
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 100.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.horizontalGradient(
+                        listOf(Color(0xFF00C39A), Color(0xFF009C7A))
+                    )
+                )
+                .padding(vertical = 32.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "Welcome",
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight()
-                    .background(Color.White, shape = RoundedCornerShape(topStart = 60.dp, topEnd = 60.dp))
-                    .padding(35.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-//asdfadafda
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("Username or Email") },
-                    placeholder = { Text("example@example.com") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    shape = RoundedCornerShape(12.dp)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "Welcome Back",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
-
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("Password") },
-                    placeholder = { Text("••••••••") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        val icon = if (passwordVisible) "🙈" else "👁️"
-                        Text(
-                            text = icon,
-                            modifier = Modifier.clickable { passwordVisible = !passwordVisible }
-                        )
-                    },
-                    shape = RoundedCornerShape(12.dp)
+                Text(
+                    text = "Sign in to continue your style journey",
+                    fontSize = 14.sp,
+                    color = Color(0xFFE0F2F1)
                 )
+            }
+        }
 
-                Spacer(modifier = Modifier.height(24.dp))
+        // Login form card
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .offset(y = (-24).dp)
+                .shadow(4.dp, RoundedCornerShape(20.dp)) // shadow before background
+                .background(Color.White, RoundedCornerShape(20.dp))
+                .padding(20.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Email
+                Column {
+                    Text("Email Address", fontSize = 14.sp, color = Color(0xFF37474F))
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        placeholder = { Text("Enter your email") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.Email,
+                                contentDescription = "Email",
+                                tint = Color.Gray
+                            )
+                        }
+                    )
+                }
 
+                // Password
+                Column {
+                    Text("Password", fontSize = 14.sp, color = Color(0xFF37474F))
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        placeholder = { Text("Enter your password") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.Lock,
+                                contentDescription = "Password",
+                                tint = Color.Gray
+                            )
+                        },
+                        trailingIcon = {
+                            IconButton(onClick = { showPassword = !showPassword }) {
+                                Icon(
+                                    imageVector = if (showPassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                    contentDescription = "Toggle Password",
+                                    tint = Color.Gray
+                                )
+                            }
+                        }
+                    )
+                }
+
+                // Forgot Password
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Text(
+                        text = "Forgot Password?",
+                        color = Color(0xFF00C39A),
+                        modifier = Modifier.clickable { onForgotPasswordClick() },
+                        fontSize = 14.sp
+                    )
+                }
+
+                // Sign In Button
                 Button(
-                    onClick = { onLoginClick(email, password) },
+                    onClick = {
+                        scope.launch {
+                            loading = true
+                            delay(1500) // simulate API/login delay
+                            onLoginClick(email, password)
+                            loading = false
+                        }
+                    },
+                    enabled = email.isNotEmpty() && password.isNotEmpty() && !loading,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(30.dp),
+                        .height(48.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00C39A))
                 ) {
-                    Text("Log In", fontSize = 16.sp)
+                    if (loading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Sign In", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
+            }
+        }
 
-                Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-                Text(
-                    text = "Forgot Password?",
-                    color = Color.Gray,
-                    fontSize = 14.sp
-                )
+        // Sign up
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text("Don't have an account? ", color = Color.Gray, fontSize = 14.sp)
+            Text(
+                text = "Create Account",
+                color = Color(0xFF00C39A),
+                modifier = Modifier.clickable { onRegisterClick() },
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutlinedButton(
-                    onClick = onRegisterClick,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(30.dp)
-                ) {
-                    Text("Sign Up", fontSize = 16.sp)
-                }
+        // Demo Login
+        Spacer(modifier = Modifier.height(24.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .background(Color(0xFFF9FAFB), RoundedCornerShape(16.dp))
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("Demo Login", color = Color.Gray, fontSize = 14.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = {
+                    email = "demo@fitmatch.com"
+                    password = "demo123"
+                },
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF00C39A)),
+                border = ButtonDefaults.outlinedButtonBorder
+            ) {
+                Text("Use Demo Credentials")
             }
         }
     }
 }
 
-@Preview(showBackground = true, showSystemUi=true)
+@Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun LoginScreenPreview() {
     LoginScreen()

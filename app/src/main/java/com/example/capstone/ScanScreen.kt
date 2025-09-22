@@ -10,7 +10,12 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,7 +34,6 @@ import java.nio.ByteBuffer
 @Composable
 fun ScanScreen(navController: NavController) {
     val imageCapture = remember { ImageCapture.Builder().build() }
-
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     // Launcher for picking image from gallery
@@ -55,6 +59,7 @@ fun ScanScreen(navController: NavController) {
             .background(Color(0xFF00C8A0)),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Header
         Spacer(modifier = Modifier.height(40.dp))
         Text(
             "Scan Body",
@@ -63,64 +68,144 @@ fun ScanScreen(navController: NavController) {
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
+        // Camera Preview Box
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
                 .padding(16.dp)
                 .clip(RoundedCornerShape(20.dp))
+                .background(Color.Black),
+            contentAlignment = Alignment.Center
         ) {
-            CameraPreviewWithCapture(imageCapture = imageCapture, modifier = Modifier.fillMaxSize())
-        }
+            if (capturedBitmap == null) {
+                CameraPreviewWithCapture(imageCapture = imageCapture, modifier = Modifier.fillMaxSize())
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Capture button
-        Button(
-            onClick = {
-                imageCapture.takePicture(
-                    ContextCompat.getMainExecutor(navController.context),
-                    object : ImageCapture.OnImageCapturedCallback() {
-                        override fun onCaptureSuccess(image: ImageProxy) {
-                            val bitmap = imageProxyToBitmap(image)
-                            capturedBitmap = bitmap
-                            image.close()
-
-                            bitmap?.let {
-                                navController.currentBackStackEntry?.savedStateHandle?.set("capturedBitmap", it)
-                                navController.navigate("result")
-                            }
+                // Overlay Guide
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.Transparent),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CameraAlt,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.7f),
+                                modifier = Modifier.size(32.dp)
+                            )
                         }
-
-                        override fun onError(exception: ImageCaptureException) {
-                            Log.e("ScanScreen", "Capture failed: ${exception.message}", exception)
-                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Position yourself in the frame",
+                            fontSize = 14.sp,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
                     }
-                )
-            },
-            colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-            shape = RoundedCornerShape(20.dp),
-            modifier = Modifier
-                .padding(8.dp)
-                .fillMaxWidth()
-        ) {
-            Text("Capture", color = Color(0xFF00C8A0))
+                }
+            } else {
+                // Show captured image overlay
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.3f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.9f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = null,
+                            tint = Color(0xFF00C8A0),
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                }
+            }
         }
 
-        //  Gallery button
-        Button(
-            onClick = { galleryLauncher.launch("image/*") },
-            colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-            shape = RoundedCornerShape(20.dp),
-            modifier = Modifier
-                .padding(8.dp)
-                .fillMaxWidth()
-        ) {
-            Text("Pick from Gallery", color = Color(0xFF00C8A0))
+        // Buttons
+        Spacer(modifier = Modifier.height(16.dp))
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            if (capturedBitmap == null) {
+                Button(
+                    onClick = {
+                        imageCapture.takePicture(
+                            ContextCompat.getMainExecutor(navController.context),
+                            object : ImageCapture.OnImageCapturedCallback() {
+                                override fun onCaptureSuccess(image: ImageProxy) {
+                                    val bitmap = imageProxyToBitmap(image)
+                                    capturedBitmap = bitmap
+                                    image.close()
+
+                                    bitmap?.let {
+                                        navController.currentBackStackEntry?.savedStateHandle?.set("capturedBitmap", it)
+                                        navController.navigate("result")
+                                    }
+                                }
+
+                                override fun onError(exception: ImageCaptureException) {
+                                    Log.e("ScanScreen", "Capture failed: ${exception.message}", exception)
+                                }
+                            }
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color(0xFF00C8A0))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Capture", color = Color(0xFF00C8A0))
+                }
+
+                Button(
+                    onClick = { galleryLauncher.launch("image/*") },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .fillMaxWidth()
+                        .height(48.dp)
+                ) {
+                    Icon(Icons.Default.Upload, contentDescription = null, tint = Color(0xFF00C8A0))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Pick from Gallery", color = Color(0xFF00C8A0))
+                }
+            } else {
+                Button(
+                    onClick = { capturedBitmap = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, tint = Color(0xFF00C8A0))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Retake Photo", color = Color(0xFF00C8A0))
+                }
+            }
         }
     }
 }
-
 
 fun imageProxyToBitmap(image: ImageProxy): Bitmap? {
     val planeProxy = image.planes.firstOrNull() ?: return null
