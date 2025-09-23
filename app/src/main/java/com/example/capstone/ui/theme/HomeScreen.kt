@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -83,11 +84,20 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
                             )
                         }
 
-                        Surface(
-                            modifier = Modifier.size(48.dp),
-                            shape = RoundedCornerShape(24.dp),
-                            color = Color.White.copy(alpha = 0.2f)
-                        ) { /* avatar placeholder */ }
+                        // ✅ Profile button (navigates to Profile)
+                        IconButton(
+                            onClick = { onNavigate("profile") },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(Color.White.copy(alpha = 0.2f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = "Profile",
+                                tint = Color.White
+                            )
+                        }
                     }
 
                     Spacer(Modifier.height(16.dp))
@@ -116,10 +126,8 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
             }
         }
 
-        // Inside HomeScreenContent
+        // ✅ Main Actions grid
         item {
-            // Main Actions (2x2 grid)
-// Main Actions (2x2 grid)
             Column(Modifier.padding(16.dp)) {
                 Row(
                     Modifier.fillMaxWidth(),
@@ -169,12 +177,10 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
                     ) { onNavigate("buildFit") }
                 }
             }
-
         }
 
-
+        // ✅ Today's Suggestion
         item {
-            // Today's Suggestion
             Card(
                 modifier = Modifier
                     .padding(16.dp)
@@ -183,13 +189,16 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
                 elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Column {
                             Text("Today's Suggestion", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                             Text("Perfect for today's weather", color = Color.Gray)
                         }
-                        // calendar icon placeholder
-                        Box(modifier = Modifier.size(28.dp)) {}
+                        Box(modifier = Modifier.size(28.dp)) {} // placeholder
                     }
 
                     Spacer(Modifier.height(12.dp))
@@ -227,8 +236,8 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
             }
         }
 
+        // ✅ Recent Outfits
         item {
-            // Recent Outfits
             Card(
                 modifier = Modifier
                     .padding(16.dp)
@@ -280,8 +289,8 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
             }
         }
 
+        // ✅ Style Journey
         item {
-            // Style Journey
             Card(
                 modifier = Modifier
                     .padding(16.dp)
@@ -372,8 +381,6 @@ fun ActionCard(
         }
     }
 }
-
-
 
 /** Preview */
 @Preview(showBackground = true, showSystemUi = true)

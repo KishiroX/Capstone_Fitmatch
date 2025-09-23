@@ -12,7 +12,6 @@ import com.example.capstone.ui.screens.*
 import com.example.capstone.ui.theme.AssistanceScreen
 import com.example.capstone.ui.screens.TryOnScreen
 
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,7 +96,6 @@ fun AppNavHost(navController: NavHostController = rememberNavController()) {
                             popUpTo("assistant") { inclusive = true }
                         }
                         "tryon" -> navController.navigate("tryon")
-                        // Leave history out for now
                     }
                 }
             )
@@ -117,6 +115,29 @@ fun AppNavHost(navController: NavHostController = rememberNavController()) {
                     }
                 }
             )
+        }
+
+        // Profile Screen
+        composable("profile") {
+            ProfileScreen(
+                onNavigate = { destination ->
+                    when (destination) {
+                        "home" -> navController.navigate("home") {
+                            popUpTo("profile") { inclusive = true }
+                        }
+                        else -> navController.navigate(destination)
+                    }
+                },
+                user = User( // Dummy data for now
+                    name = "Jane Doe",
+                    email = "jane@example.com",
+                    height = "165",
+                    weight = "55",
+                    age = "23",
+                    bodyType = "Rectangle"
+                )
+            )
+
         }
     }
 }
