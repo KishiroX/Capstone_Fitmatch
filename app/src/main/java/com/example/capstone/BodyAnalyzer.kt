@@ -27,7 +27,7 @@ class BodyAnalyzer(private val context: Context) {
             .build()
 
         landmarker = PoseLandmarker.createFromOptions(context, options)
-        println("✅ Pose model loaded successfully.")
+        println(" Pose model loaded successfully.")
     }
 
 
@@ -39,16 +39,16 @@ class BodyAnalyzer(private val context: Context) {
             val result = landmarker.detect(mpImage)
 
             if (result.landmarks().isEmpty()) {
-                println("❌ No pose detected. (Check image quality or model file)")
+                println("No pose detected. (Check image quality or model file)")
                 null
             } else {
                 val count = result.landmarks()[0].size
-                println("✅ Pose detected with $count landmarks")
+                println(" Pose detected with $count landmarks")
                 result
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            println("❌ Pose analysis failed: ${e.localizedMessage}")
+            println("Pose analysis failed: ${e.localizedMessage}")
             null
         }
     }

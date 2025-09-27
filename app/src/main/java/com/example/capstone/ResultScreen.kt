@@ -23,6 +23,9 @@ import androidx.navigation.NavController
 import com.example.capstone.analysis.BodyAnalyzer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import android.util.Log
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,23 +40,22 @@ fun ResultScreen(navController: NavController) {
     }
     val resultData = remember { mutableStateOf<Map<String, Any>>(emptyMap()) }
 
+    // 🔹 Analyze bitmap only
     LaunchedEffect(savedBitmap) {
         savedBitmap?.let { bitmap ->
             val bodyData = withContext(Dispatchers.Default) {
                 try {
                     val poseResult = bodyAnalyzer.analyze(bitmap)
                     val data = bodyAnalyzer.calculateFullBodyComposition(bitmap, poseResult)
-
                     if (data.isEmpty()) {
                         mapOf("Error" to "Pose not fully detected")
-                    } else {
-                        data
-                    }
+                    } else data
                 } catch (e: Exception) {
                     mapOf("Error" to "Analysis failed: ${e.localizedMessage}")
                 }
             }
             resultData.value = bodyData
+            Log.d("ResultScreen", "📊 Analysis finished: $bodyData")
         }
     }
 
@@ -64,13 +66,13 @@ fun ResultScreen(navController: NavController) {
             .fillMaxSize()
             .background(Color.White)
     ) {
-        // Gradient Header with step indicator
+        // Gradient Header
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
                     Brush.horizontalGradient(
-                        listOf(Color(0xFF10B981), Color(0xFF0D9488)) // emerald → teal
+                        listOf(Color(0xFF10B981), Color(0xFF0D9488))
                     )
                 )
                 .padding(24.dp),
@@ -124,12 +126,8 @@ fun ResultScreen(navController: NavController) {
                     // Measurements Section
                     SectionHeader("Measurements")
                     val measurements = listOf(
-                        "Shoulder Width",
-                        "Hip Width",
-                        "Torso Length",
-                        "Leg Length",
-                        "Arm Length",
-                        "Estimated Skin Color"
+                        "Shoulder Width", "Hip Width", "Torso Length",
+                        "Leg Length", "Arm Length", "Estimated Skin Color"
                     )
                     measurements.forEach { key ->
                         ResultField(key, resultData.value[key])
@@ -149,10 +147,53 @@ fun ResultScreen(navController: NavController) {
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // 🔹 Confirm button saves + navigates
                     Button(
                         onClick = {
-                            navController.navigate("home") {
-                                popUpTo("result") { inclusive = true }
+                            val userId = FirebaseAuth.getInstance().currentUser?.uid
+                            val data = resultData.value
+
+                            Log.d("ResultScreen", "Confirm clicked. UserId: $userId, Data: $data")
+
+                            if (userId != null && data.isNotEmpty() && !data.containsKey("Error")) {
+                                val db = FirebaseFirestore.getInstance()
+
+                                // ✅ Ensure only supported Firestore data types
+                                val safeData = data.mapValues { (_, v) ->
+                                    when (v) {
+                                        is Float, is Double, is Int, is Long, is String, is Boolean -> v
+                                        else -> v.toString()
+                                    }
+                                }
+
+                                val dataToSave = safeData + mapOf("timestamp" to com.google.firebase.Timestamp.now())
+
+                                Log.d("ResultScreen", "🚀 Saving to Firestore: $dataToSave")
+
+                                db.collection("users")
+                                    .document(userId)
+                                    .collection("bodyComposition")
+                                    .add(dataToSave)
+                                    .addOnSuccessListener {
+                                        Log.d("Firestore", "✅ Saved successfully for $userId")
+                                        navController.navigate("home") {
+                                            popUpTo("result") { inclusive = true }
+                                            launchSingleTop = true
+                                        }
+                                    }
+                                    .addOnFailureListener { e ->
+                                        Log.e("Firestore", "❌ Save failed: ${e.message}", e)
+                                        navController.navigate("home") {
+                                            popUpTo("result") { inclusive = true }
+                                            launchSingleTop = true
+                                        }
+                                    }
+                            } else {
+                                Log.w("ResultScreen", "⚠️ No valid user or data. Skipping save.")
+                                navController.navigate("home") {
+                                    popUpTo("result") { inclusive = true }
+                                    launchSingleTop = true
+                                }
                             }
                         },
                         shape = RoundedCornerShape(20.dp),
@@ -163,7 +204,6 @@ fun ResultScreen(navController: NavController) {
                     ) {
                         Text("Confirm", color = Color.White)
                     }
-
                 }
             }
         }
@@ -183,11 +223,7 @@ fun SectionHeader(title: String) {
 @Composable
 fun ResultField(label: String, value: Any?) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = label,
-            color = Color(0xFF374151),
-            fontSize = 14.sp
-        )
+        Text(text = label, color = Color(0xFF374151), fontSize = 14.sp)
         Box(
             modifier = Modifier
                 .fillMaxWidth()

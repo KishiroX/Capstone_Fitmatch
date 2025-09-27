@@ -3,6 +3,8 @@ package com.example.capstone
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -11,10 +13,17 @@ import androidx.navigation.compose.rememberNavController
 import com.example.capstone.ui.screens.*
 import com.example.capstone.ui.theme.AssistanceScreen
 import com.example.capstone.ui.screens.TryOnScreen
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Initialize Firebase instances
+        val auth = FirebaseAuth.getInstance()
+        val db = FirebaseFirestore.getInstance()
+
         setContent {
             AppNavHost()
         }
@@ -58,23 +67,19 @@ fun AppNavHost(navController: NavHostController = rememberNavController()) {
             )
         }
 
-        // SignUp → Scan
         composable("signup") {
             SignUpScreen(
                 onSignUpClick = { name, email, password ->
-                    navController.navigate("scan") {
-                        popUpTo("signup") { inclusive = true }
-                    }
+                    // handled in SignUpScreen directly
                 },
                 onAlreadyHaveAccountClick = {
-                    navController.popBackStack()
-                }
+                    // navigate to login if you have one
+                },
+                navController = navController //  pass navController down
             )
         }
-
-        // Scan Screen
         composable("scan") {
-            ScanScreen(navController = navController)
+            ScanScreen(navController) // your scan screen
         }
 
         // Result Screen
@@ -118,26 +123,17 @@ fun AppNavHost(navController: NavHostController = rememberNavController()) {
         }
 
         // Profile Screen
-        composable("profile") {
-            ProfileScreen(
-                onNavigate = { destination ->
-                    when (destination) {
-                        "home" -> navController.navigate("home") {
-                            popUpTo("profile") { inclusive = true }
-                        }
-                        else -> navController.navigate(destination)
-                    }
-                },
-                user = User( // Dummy data for now
-                    name = "Jane Doe",
-                    email = "jane@example.com",
-                    height = "165",
-                    weight = "55",
-                    age = "23",
-                    bodyType = "Rectangle"
-                )
-            )
-
-        }
+//        composable("profile") {
+//            ProfileScreen(
+//                onNavigate = { destination ->
+//                    when (destination) {
+//                        "home" -> navController.navigate("home") {
+//                            popUpTo("profile") { inclusive = true }
+//                        }
+//                        else -> navController.navigate(destination)
+//                    }
+//                }
+//            )
+//        }
     }
 }

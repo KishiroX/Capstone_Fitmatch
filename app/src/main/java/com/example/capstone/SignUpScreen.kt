@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.TextFieldDefaults
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,13 +19,14 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import androidx.navigation.NavHostController
+
 
 @Composable
 fun SignUpScreen(
     onSignUpClick: (String, String, String) -> Unit = { _, _, _ -> },
-    onAlreadyHaveAccountClick: () -> Unit = {}
+    onAlreadyHaveAccountClick: () -> Unit = {},
+    navController: NavHostController
 ) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -35,20 +38,52 @@ fun SignUpScreen(
 
     val isFormValid = name.isNotEmpty() && email.isNotEmpty() &&
             password.isNotEmpty() && confirmPassword.isNotEmpty()
-    val scope = rememberCoroutineScope()
-
     fun handleSignUp() {
         if (password != confirmPassword) {
             println("Passwords do not match")
             return
         }
         loading = true
-        scope.launch {
-            delay(1500) // simulate network call
-            onSignUpClick(name, email, password)
-            loading = false
-        }
+
+        val auth = FirebaseAuth.getInstance()
+        val db = FirebaseFirestore.getInstance()
+
+        auth.createUserWithEmailAndPassword(email, password)
+            .addOnCompleteListener { task ->
+                loading = false
+                if (task.isSuccessful) {
+                    val uid = auth.currentUser?.uid ?: ""
+
+                    // Save user profile in Firestore
+                    val userData = hashMapOf(
+                        "uid" to uid,
+                        "name" to name,
+                        "email" to email
+                    )
+
+                    db.collection("users").document(uid)
+                        .set(userData)
+                        .addOnSuccessListener {
+                            println("User saved in Firestore")
+                        }
+                        .addOnFailureListener { e ->
+                            println("Firestore save failed: ${e.message}")
+                        }
+
+                    // Always navigate to ScanScreen after signup
+                    navController.navigate("scan") {
+                        popUpTo("signup") { inclusive = true }
+                    }
+
+                } else {
+                    println("Auth Error: ${task.exception?.message}")
+                }
+            }
     }
+
+
+
+
 
     Column(
         modifier = Modifier

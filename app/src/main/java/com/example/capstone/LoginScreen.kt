@@ -4,7 +4,7 @@ package com.example.capstone.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
@@ -24,8 +24,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(
@@ -146,12 +144,19 @@ fun LoginScreen(
                 // Sign In Button
                 Button(
                     onClick = {
-                        scope.launch {
-                            loading = true
-                            delay(1500) // simulate API/login delay
-                            onLoginClick(email, password)
-                            loading = false
-                        }
+                        loading = true
+                        val auth = FirebaseAuth.getInstance()
+                        auth.signInWithEmailAndPassword(email, password)
+                            .addOnCompleteListener { task ->
+                                loading = false
+                                if (task.isSuccessful) {
+                                    // success → call your navigation
+                                    onLoginClick(email, password)
+                                } else {
+                                    // show error
+                                    println("Login failed: ${task.exception?.message}")
+                                }
+                            }
                     },
                     enabled = email.isNotEmpty() && password.isNotEmpty() && !loading,
                     modifier = Modifier
@@ -170,6 +175,7 @@ fun LoginScreen(
                         Text("Sign In", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
+
             }
         }
 

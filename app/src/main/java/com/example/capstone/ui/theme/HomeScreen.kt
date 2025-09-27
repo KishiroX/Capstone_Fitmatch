@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Person
+import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -42,9 +43,9 @@ fun HomeScreen(navController: NavController, userName: String = "Style") {
 @Composable
 fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") {
     val quickStats = listOf(
-        "Outfits" to 23,
-        "Items" to 47,
-        "Used" to 15
+        "Outfits" to 0,
+        "Items" to 0,
+        "Used" to 0
     )
 
     LazyColumn(
@@ -84,7 +85,7 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
                             )
                         }
 
-                        // ✅ Profile button (navigates to Profile)
+                        //  Profile button (navigates to Profile)
                         IconButton(
                             onClick = { onNavigate("profile") },
                             modifier = Modifier
@@ -126,7 +127,7 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
             }
         }
 
-        // ✅ Main Actions grid
+        //  Main Actions grid
         item {
             Column(Modifier.padding(16.dp)) {
                 Row(
@@ -179,7 +180,7 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
             }
         }
 
-        // ✅ Today's Suggestion
+        //  Today's Suggestion
         item {
             Card(
                 modifier = Modifier
@@ -236,7 +237,7 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
             }
         }
 
-        // ✅ Recent Outfits
+        //  Recent Outfits
         item {
             Card(
                 modifier = Modifier
@@ -289,7 +290,7 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
             }
         }
 
-        // ✅ Style Journey
+        // Style Journey
         item {
             Card(
                 modifier = Modifier

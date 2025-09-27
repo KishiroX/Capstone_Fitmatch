@@ -19,7 +19,7 @@ import androidx.compose.ui.tooling.preview.Preview
 
 @Composable
 fun OnboardingScreen(
-    onGetStartedClick: () -> Unit = {},   // ✅ renamed for MainActivity
+    onGetStartedClick: () -> Unit = {},   //  renamed for MainActivity
     onRegisterClick: () -> Unit = {}
 ) {
     Column(
@@ -142,7 +142,7 @@ fun OnboardingScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Button(
-                onClick = onGetStartedClick,   // ✅ now calls correct callback
+                onClick = onGetStartedClick,   //  now calls correct callback
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
