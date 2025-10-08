@@ -26,6 +26,7 @@ import kotlinx.coroutines.withContext
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import android.util.Log
+import com.google.firebase.firestore.SetOptions
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,7 +41,6 @@ fun ResultScreen(navController: NavController) {
     }
     val resultData = remember { mutableStateOf<Map<String, Any>>(emptyMap()) }
 
-    // 🔹 Analyze bitmap only
     LaunchedEffect(savedBitmap) {
         savedBitmap?.let { bitmap ->
             val bodyData = withContext(Dispatchers.Default) {
@@ -66,7 +66,7 @@ fun ResultScreen(navController: NavController) {
             .fillMaxSize()
             .background(Color.White)
     ) {
-        // Gradient Header
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -93,7 +93,6 @@ fun ResultScreen(navController: NavController) {
             }
         }
 
-        // Content card
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -123,17 +122,31 @@ fun ResultScreen(navController: NavController) {
                         color = Color.Gray
                     )
 
-                    // Measurements Section
+                    // 🔹 Info message for editable fields
+                    Text(
+                        text = "✏️ You can edit your measurements before saving.",
+                        fontSize = 13.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
                     SectionHeader("Measurements")
                     val measurements = listOf(
                         "Shoulder Width", "Hip Width", "Torso Length",
                         "Leg Length", "Arm Length", "Estimated Skin Color"
                     )
                     measurements.forEach { key ->
-                        ResultField(key, resultData.value[key])
+                        EditableResultField(key, resultData)
                     }
 
-                    // Ratios Section
+                    // 🔹 Info message for ratios as well
+                    Text(
+                        text = "✏️ Ratios are also editable if needed.",
+                        fontSize = 13.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(top = 12.dp, bottom = 8.dp)
+                    )
+
                     SectionHeader("Body Ratios")
                     val ratios = listOf(
                         "Shoulder-to-Hip Ratio",
@@ -142,12 +155,11 @@ fun ResultScreen(navController: NavController) {
                         "Shoulder-to-Height Ratio"
                     )
                     ratios.forEach { key ->
-                        ResultField(key, resultData.value[key])
+                        EditableResultField(key, resultData)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // 🔹 Confirm button saves + navigates
                     Button(
                         onClick = {
                             val userId = FirebaseAuth.getInstance().currentUser?.uid
@@ -158,7 +170,6 @@ fun ResultScreen(navController: NavController) {
                             if (userId != null && data.isNotEmpty() && !data.containsKey("Error")) {
                                 val db = FirebaseFirestore.getInstance()
 
-                                // ✅ Ensure only supported Firestore data types
                                 val safeData = data.mapValues { (_, v) ->
                                     when (v) {
                                         is Float, is Double, is Int, is Long, is String, is Boolean -> v
@@ -166,14 +177,17 @@ fun ResultScreen(navController: NavController) {
                                     }
                                 }
 
-                                val dataToSave = safeData + mapOf("timestamp" to com.google.firebase.Timestamp.now())
+                                val dataToSave = safeData + mapOf(
+                                    "timestamp" to com.google.firebase.Timestamp.now()
+                                )
 
                                 Log.d("ResultScreen", "🚀 Saving to Firestore: $dataToSave")
 
                                 db.collection("users")
                                     .document(userId)
                                     .collection("bodyComposition")
-                                    .add(dataToSave)
+                                    .document("latest")
+                                    .set(dataToSave, SetOptions.merge())
                                     .addOnSuccessListener {
                                         Log.d("Firestore", "✅ Saved successfully for $userId")
                                         navController.navigate("home") {
@@ -219,29 +233,37 @@ fun SectionHeader(title: String) {
         color = Color(0xFF111827)
     )
 }
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ResultField(label: String, value: Any?) {
+fun EditableResultField(label: String, resultData: MutableState<Map<String, Any>>) {
+    var textValue by remember { mutableStateOf(resultData.value[label]?.toString() ?: "N/A") }
+
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(text = label, color = Color(0xFF374151), fontSize = 14.sp)
-        Box(
+        TextField(
+            value = textValue,
+            onValueChange = {
+                textValue = it
+                resultData.value = resultData.value.toMutableMap().apply { put(label, it) }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFFF9FAFB))
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-        ) {
-            Text(
-                text = when (value) {
-                    is Float -> String.format("%.2f", value)
-                    is String -> value
-                    else -> "N/A"
-                },
-                color = Color.Black,
+                .background(Color(0xFFF9FAFB)),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color(0xFFF9FAFB),
+                unfocusedContainerColor = Color(0xFFF9FAFB),
+                disabledContainerColor = Color(0xFFF9FAFB),
+                cursorColor = Color(0xFF00C8A0),
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                disabledIndicatorColor = Color.Transparent
+            ),
+            textStyle = LocalTextStyle.current.copy(
                 fontSize = 14.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+                color = Color.Black
+            ),
+            singleLine = true
+        )
     }
 }

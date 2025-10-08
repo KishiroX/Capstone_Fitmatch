@@ -1,4 +1,4 @@
-// LoginScreen.kt
+
 package com.example.capstone.ui.screens
 
 import androidx.compose.foundation.background
@@ -42,7 +42,8 @@ fun LoginScreen(
             .fillMaxSize()
             .background(Color.White)
     ) {
-        // Header
+
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -69,18 +70,18 @@ fun LoginScreen(
             }
         }
 
-        // Login form card
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
                 .offset(y = (-24).dp)
-                .shadow(4.dp, RoundedCornerShape(20.dp)) // shadow before background
+                .shadow(4.dp, RoundedCornerShape(20.dp))
                 .background(Color.White, RoundedCornerShape(20.dp))
                 .padding(20.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                // Email
+
                 Column {
                     Text("Email Address", fontSize = 14.sp, color = Color(0xFF37474F))
                     OutlinedTextField(
@@ -99,7 +100,7 @@ fun LoginScreen(
                     )
                 }
 
-                // Password
+
                 Column {
                     Text("Password", fontSize = 14.sp, color = Color(0xFF37474F))
                     OutlinedTextField(
@@ -128,7 +129,7 @@ fun LoginScreen(
                     )
                 }
 
-                // Forgot Password
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
@@ -141,7 +142,7 @@ fun LoginScreen(
                     )
                 }
 
-                // Sign In Button
+
                 Button(
                     onClick = {
                         loading = true
@@ -150,10 +151,10 @@ fun LoginScreen(
                             .addOnCompleteListener { task ->
                                 loading = false
                                 if (task.isSuccessful) {
-                                    // success → call your navigation
+
                                     onLoginClick(email, password)
                                 } else {
-                                    // show error
+
                                     println("Login failed: ${task.exception?.message}")
                                 }
                             }
@@ -181,7 +182,7 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Sign up
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center
@@ -196,7 +197,7 @@ fun LoginScreen(
             )
         }
 
-        // Demo Login
+
         Spacer(modifier = Modifier.height(24.dp))
         Column(
             modifier = Modifier

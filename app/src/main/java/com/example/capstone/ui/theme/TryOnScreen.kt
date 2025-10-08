@@ -1,4 +1,4 @@
-// TryOnScreen.kt
+
 package com.example.capstone.ui.screens
 
 import androidx.compose.foundation.Image
@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
 
-// --- Data Models ---
+
 data class ClothingItem(
     val id: String,
     val name: String,
@@ -46,11 +46,11 @@ data class OutfitState(
     val tops: ClothingItem? = null,
     val bottoms: ClothingItem? = null,
     val shoes: ClothingItem? = null,
-    val dress: ClothingItem? = null, // single dress
+    val dress: ClothingItem? = null,
     val outerwear: ClothingItem? = null
 )
 
-// --- Mock Data ---
+
 val mockClothingItems = listOf(
     ClothingItem("1", "Classic White Shirt", Category.TOPS,
         "https://images.unsplash.com/photo-1603252110481-7ba873bf42ab",
@@ -78,7 +78,7 @@ val mockClothingItems = listOf(
     )
 )
 
-// --- Outfit Utility Functions ---
+
 fun OutfitState.getItemByCategory(category: Category) = when(category) {
     Category.TOPS -> tops
     Category.BOTTOMS -> bottoms
@@ -111,7 +111,7 @@ fun OutfitState.updateWithSelection(item: ClothingItem): OutfitState {
     }
 }
 
-// --- Mannequin Composable ---
+
 @Composable
 fun MobileMannequin(outfit: OutfitState) {
     Box(
@@ -121,7 +121,7 @@ fun MobileMannequin(outfit: OutfitState) {
             .background(Color(0xFFF0F0F0)),
         contentAlignment = Alignment.Center
     ) {
-        // Head
+
         Box(
             modifier = Modifier
                 .size(52.dp, 64.dp)
@@ -131,7 +131,6 @@ fun MobileMannequin(outfit: OutfitState) {
                 )
         )
 
-        // Torso and clothes
         Column(
             modifier = Modifier.padding(top = 70.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -158,7 +157,6 @@ fun MobileMannequin(outfit: OutfitState) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Shoes
             Row {
                 Box(
                     modifier = Modifier
@@ -176,7 +174,7 @@ fun MobileMannequin(outfit: OutfitState) {
     }
 }
 
-// --- Clothing Card ---
+
 @Composable
 fun ClothingCard(
     item: ClothingItem,
@@ -214,7 +212,6 @@ fun ClothingCard(
     }
 }
 
-// --- Main Try-On Screen ---
 @Composable
 fun TryOnScreen(onNavigate: (String) -> Unit) {
     var outfit by remember { mutableStateOf(OutfitState()) }
@@ -223,7 +220,7 @@ fun TryOnScreen(onNavigate: (String) -> Unit) {
     val categories = listOf(Category.TOPS, Category.BOTTOMS, Category.DRESSES, Category.OUTERWEAR, Category.SHOES)
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Header
+
         TopAppBar(
             title = { Text("Virtual Try-On") },
             navigationIcon = {
@@ -237,10 +234,9 @@ fun TryOnScreen(onNavigate: (String) -> Unit) {
             contentColor = Color.White
         )
 
-        // Mannequin
+
         MobileMannequin(outfit)
 
-        // Category Tabs
         LazyRow(modifier = Modifier.padding(8.dp)) {
             items(categories) { category ->
                 Button(
@@ -255,7 +251,7 @@ fun TryOnScreen(onNavigate: (String) -> Unit) {
             }
         }
 
-        // Clothing Grid
+
         val filteredItems = mockClothingItems.filter { it.category == activeCategory }
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
@@ -271,7 +267,6 @@ fun TryOnScreen(onNavigate: (String) -> Unit) {
             }
         }
 
-        // Bottom Buttons
         Row(modifier = Modifier.padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = { outfit = OutfitState() },

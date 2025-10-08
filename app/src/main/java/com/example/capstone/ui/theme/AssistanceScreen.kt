@@ -2,16 +2,13 @@ package com.example.capstone.ui.theme
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.Style
-import androidx.compose.material.icons.filled.Thermostat
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -50,7 +47,7 @@ fun AssistanceScreen(
         "Bohemian", "Minimalist", "Trendy", "Classic", "Edgy"
     )
     val weatherConditions = listOf(
-        "Sunny", "Cloudy", "Rainy", "Snowy", "Windy", "Hot", "Cold", "Humid"
+        "Sunny", "Cloudy", "Rainy", "Windy", "Humid", "Hot", "Cool", "Stormy"
     )
 
     fun handleGenerateRecommendation() {
@@ -71,7 +68,7 @@ fun AssistanceScreen(
             .background(Color(0xFFF9FAFB))
             .verticalScroll(rememberScrollState())
     ) {
-        // Header
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -100,7 +97,6 @@ fun AssistanceScreen(
             }
         }
 
-        // Card container
         Box(
             modifier = Modifier
                 .padding(16.dp)
@@ -128,7 +124,6 @@ fun AssistanceScreen(
     }
 }
 
-// --- Data ---
 data class AssistantForm(
     val event: String,
     val theme: String,
@@ -136,7 +131,6 @@ data class AssistantForm(
     val temperature: String
 )
 
-// --- Steps ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InputStep(
@@ -155,44 +149,146 @@ fun InputStep(
         )
         Text("Tell me about your occasion and I'll create the perfect outfit")
 
-        // Event
-        OutlinedTextField(
-            value = formData.event,
-            onValueChange = { onFormChange(formData.copy(event = it)) },
-            label = { Text("What's the occasion?") },
-            placeholder = { Text("Select event type") },
-            leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null) },
-            modifier = Modifier.fillMaxWidth()
-        )
+        // 🎉 Event Type
+        Text("Event Type", fontWeight = FontWeight.Medium)
+        var selectedEvent by remember { mutableStateOf(formData.event) }
 
-        // Theme
-        OutlinedTextField(
-            value = formData.theme,
-            onValueChange = { onFormChange(formData.copy(theme = it)) },
-            label = { Text("Preferred style theme?") },
-            placeholder = { Text("Select style theme") },
-            leadingIcon = { Icon(Icons.Default.Style, contentDescription = null) },
-            modifier = Modifier.fillMaxWidth()
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            for (row in eventTypes.chunked(3)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    row.forEach { event ->
+                        val isSelected = selectedEvent == event
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(
+                                    if (isSelected) Color(0xFF8B5CF6) else Color(0xFFF3F4F6),
+                                    RoundedCornerShape(50)
+                                )
+                                .border(
+                                    1.dp,
+                                    if (isSelected) Color(0xFF8B5CF6) else Color(0xFF9CA3AF),
+                                    RoundedCornerShape(50)
+                                )
+                                .padding(vertical = 10.dp)
+                                .clickable {
+                                    selectedEvent = event
+                                    onFormChange(formData.copy(event = event))
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = event,
+                                color = if (isSelected) Color.White else Color.Black,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                    repeat(3 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+                }
+            }
+        }
 
-        // Weather
-        OutlinedTextField(
-            value = formData.weather,
-            onValueChange = { onFormChange(formData.copy(weather = it)) },
-            label = { Text("Current weather?") },
-            placeholder = { Text("Select weather condition") },
-            leadingIcon = { Icon(Icons.Default.Cloud, contentDescription = null) },
-            modifier = Modifier.fillMaxWidth()
-        )
+        // 💅 Preferred Style Theme
+        Text("Preferred Style Theme", fontWeight = FontWeight.Medium)
+        var selectedTheme by remember { mutableStateOf(formData.theme) }
 
-        // Temperature
-        OutlinedTextField(
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            for (row in themes.chunked(3)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    row.forEach { theme ->
+                        val isSelected = selectedTheme == theme
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(
+                                    if (isSelected) Color(0xFF8B5CF6) else Color(0xFFF3F4F6),
+                                    RoundedCornerShape(50)
+                                )
+                                .border(
+                                    1.dp,
+                                    if (isSelected) Color(0xFF8B5CF6) else Color(0xFF9CA3AF),
+                                    RoundedCornerShape(50)
+                                )
+                                .padding(vertical = 10.dp)
+                                .clickable {
+                                    selectedTheme = theme
+                                    onFormChange(formData.copy(theme = theme))
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = theme,
+                                color = if (isSelected) Color.White else Color.Black,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                    repeat(3 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+                }
+            }
+        }
+
+        // 🌤 Weather
+        Text("Current Weather", fontWeight = FontWeight.Medium)
+        var selectedWeather by remember { mutableStateOf(formData.weather) }
+
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            for (row in weatherConditions.chunked(3)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    row.forEach { weather ->
+                        val isSelected = selectedWeather == weather
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(
+                                    if (isSelected) Color(0xFF8B5CF6) else Color(0xFFF3F4F6),
+                                    RoundedCornerShape(50)
+                                )
+                                .border(
+                                    1.dp,
+                                    if (isSelected) Color(0xFF8B5CF6) else Color(0xFF9CA3AF),
+                                    RoundedCornerShape(50)
+                                )
+                                .padding(vertical = 10.dp)
+                                .clickable {
+                                    selectedWeather = weather
+                                    onFormChange(formData.copy(weather = weather))
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = weather,
+                                color = if (isSelected) Color.White else Color.Black,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                    repeat(3 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+                }
+            }
+        }
+
+        // 🌡 Temperature
+        ScrollableTemperaturePicker(
             value = formData.temperature,
-            onValueChange = { onFormChange(formData.copy(temperature = it)) },
-            label = { Text("Temperature (°C)") },
-            placeholder = { Text("e.g. 22") },
-            leadingIcon = { Icon(Icons.Default.Thermostat, contentDescription = null) },
-            modifier = Modifier.fillMaxWidth()
+            onValueChange = { onFormChange(formData.copy(temperature = it)) }
+        )
+
+        // 🧍‍♂️ Body Data Applied Section
+        BodyDataAppliedBox(
+            mapOf(
+                "Shoulder Width" to "45 cm",
+                "Hip Width" to "42 cm",
+                "Torso Length" to "58 cm",
+                "Leg Length" to "90 cm",
+                "Arm Length" to "60 cm",
+                "Shoulder-to-Hip Ratio" to "1.07",
+                "Torso-to-Leg Ratio" to "0.64",
+                "Arm-to-Leg Ratio" to "0.67",
+                "Shoulder-to-Height Ratio" to "0.25",
+                "Skin Color" to "Medium Tan"
+            )
         )
 
         Button(
@@ -206,12 +302,89 @@ fun InputStep(
 }
 
 @Composable
-fun GeneratingStep() {
+fun BodyDataAppliedBox(data: Map<String, String>) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, Color(0xFFE5E7EB), RoundedCornerShape(12.dp))
+            .background(Color(0xFFF9FAFB), RoundedCornerShape(12.dp))
+            .padding(16.dp)
     ) {
+        Text("Body Data Applied", fontWeight = FontWeight.SemiBold, color = Color(0xFF111827))
+        Spacer(Modifier.height(8.dp))
+        data.forEach { (label, value) ->
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(label, color = Color(0xFF4B5563))
+                Text(value, fontWeight = FontWeight.Medium)
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "These details are applied to personalize your recommendations.",
+            fontSize = MaterialTheme.typography.bodySmall.fontSize,
+            color = Color.Gray
+        )
+    }
+}
+
+@Composable
+fun ScrollableTemperaturePicker(
+    value: String,
+    onValueChange: (String) -> Unit,
+    minTemp: Int = 10,
+    maxTemp: Int = 45
+) {
+    var temperature by remember { mutableStateOf(value.toIntOrNull() ?: 25) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Temperature (°C)", fontWeight = FontWeight.Medium)
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .border(1.dp, Color.Gray.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                .background(Color.White, RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp)
+            ) {
+                Icon(imageVector = Icons.Default.Thermostat, contentDescription = null, tint = Color.Gray)
+                Spacer(Modifier.width(12.dp))
+                Text("$temperature°C", fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    IconButton(onClick = {
+                        if (temperature < maxTemp) {
+                            temperature++
+                            onValueChange(temperature.toString())
+                        }
+                    }, modifier = Modifier.size(18.dp)) {
+                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = null, tint = Color.Gray)
+                    }
+                    IconButton(onClick = {
+                        if (temperature > minTemp) {
+                            temperature--
+                            onValueChange(temperature.toString())
+                        }
+                    }, modifier = Modifier.size(18.dp)) {
+                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = Color.Gray)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GeneratingStep() {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         CircularProgressIndicator(color = Color(0xFF8B5CF6))
         Text("Creating Your Perfect Look", style = MaterialTheme.typography.titleLarge)
         Text("Analyzing your style preferences and wardrobe...")
@@ -228,7 +401,6 @@ fun ResultsStep(
         Text("Your Perfect Outfit", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text("Based on your ${formData.event} in ${formData.weather.lowercase()} weather")
 
-        // Wardrobe suggestion
         Box(
             modifier = Modifier
                 .background(Color(0xFFD1FAE5), RoundedCornerShape(12.dp))
@@ -241,16 +413,12 @@ fun ResultsStep(
                 Text("👖 Dark Jeans")
                 Text("👞 Brown Loafers")
                 Spacer(Modifier.height(8.dp))
-                Button(
-                    onClick = { onNavigate("tryon") },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                Button(onClick = { onNavigate("tryon") }, modifier = Modifier.fillMaxWidth()) {
                     Text("Try On Virtual Mannequin")
                 }
             }
         }
 
-        // Alternatives
         Box(
             modifier = Modifier
                 .background(Color(0xFFDBEAFE), RoundedCornerShape(12.dp))

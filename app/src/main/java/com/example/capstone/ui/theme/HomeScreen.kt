@@ -1,4 +1,4 @@
-// HomeScreen.kt
+
 package com.example.capstone.ui.screens
 
 import androidx.compose.foundation.background
@@ -13,21 +13,21 @@ import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Person
-import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 
-// Data for preview / sample
+
 private val sampleOutfits = listOf(
     Triple("Date Night", listOf("👔", "👖", "👞"), "Yesterday"),
     Triple("Work Meeting", listOf("👗", "👠"), "2 days ago"),
@@ -35,9 +35,31 @@ private val sampleOutfits = listOf(
 )
 
 @Composable
-fun HomeScreen(navController: NavController, userName: String = "Style") {
-    HomeScreenContent(onNavigate = { route -> navController.navigate(route) }, userName = userName)
+fun HomeScreen(navController: NavController) {
+    val userId = FirebaseAuth.getInstance().currentUser?.uid
+    var firstName by remember { mutableStateOf("Style") }
+
+    LaunchedEffect(userId) {
+        if (userId != null) {
+            val db = FirebaseFirestore.getInstance()
+            db.collection("users")
+                .document(userId)
+                .get()
+                .addOnSuccessListener { document ->
+                    val name = document.getString("firstName")
+                    if (!name.isNullOrBlank()) {
+                        firstName = name
+                    }
+                }
+        }
+    }
+
+    HomeScreenContent(
+        onNavigate = { route -> navController.navigate(route) },
+        userName = firstName
+    )
 }
+
 
 /** Separated content so preview can call without a NavController. */
 @Composable
@@ -54,7 +76,7 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
             .background(Color(0xFFF9FAFB))
     ) {
         item {
-            // Header
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -73,11 +95,12 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
                     ) {
                         Column {
                             Text(
-                                text = "Hello, ${userName.split(" ").firstOrNull() ?: "Style"}!",
+                                text = "Hello, $userName!",
                                 fontSize = 24.sp,
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold
                             )
+
                             Text(
                                 text = "Ready to look amazing today?",
                                 color = Color(0xFFD1FAE5),
@@ -85,7 +108,7 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
                             )
                         }
 
-                        //  Profile button (navigates to Profile)
+
                         IconButton(
                             onClick = { onNavigate("profile") },
                             modifier = Modifier
@@ -127,7 +150,7 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
             }
         }
 
-        //  Main Actions grid
+
         item {
             Column(Modifier.padding(16.dp)) {
                 Row(
@@ -180,7 +203,7 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
             }
         }
 
-        //  Today's Suggestion
+
         item {
             Card(
                 modifier = Modifier
@@ -199,7 +222,7 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
                             Text("Today's Suggestion", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                             Text("Perfect for today's weather", color = Color.Gray)
                         }
-                        Box(modifier = Modifier.size(28.dp)) {} // placeholder
+                        Box(modifier = Modifier.size(28.dp)) {}
                     }
 
                     Spacer(Modifier.height(12.dp))
@@ -237,7 +260,7 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
             }
         }
 
-        //  Recent Outfits
+
         item {
             Card(
                 modifier = Modifier
@@ -290,7 +313,6 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
             }
         }
 
-        // Style Journey
         item {
             Card(
                 modifier = Modifier
@@ -304,12 +326,12 @@ fun HomeScreenContent(onNavigate: (String) -> Unit, userName: String = "Style") 
                     Spacer(Modifier.height(12.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
-                            Text("Confidence Level", fontWeight = FontWeight.Medium)
+                            Text("Challenge Level", fontWeight = FontWeight.Medium)
                             Text("Keep building your style!", color = Color.Gray, fontSize = 12.sp)
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("85%", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
-                            Text("+5% this week", color = Color(0xFF059669), fontSize = 12.sp)
+                            Text("0%", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                            Text("+0% this week", color = Color(0xFF059669), fontSize = 12.sp)
                         }
                     }
 
@@ -383,9 +405,3 @@ fun ActionCard(
     }
 }
 
-/** Preview */
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-fun HomeScreenPreview() {
-    HomeScreenContent(onNavigate = {}, userName = "John Doe")
-}

@@ -21,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 
-
 @Composable
 fun SignUpScreen(
     onSignUpClick: (String, String, String) -> Unit = { _, _, _ -> },
@@ -38,6 +37,7 @@ fun SignUpScreen(
 
     val isFormValid = name.isNotEmpty() && email.isNotEmpty() &&
             password.isNotEmpty() && confirmPassword.isNotEmpty()
+
     fun handleSignUp() {
         if (password != confirmPassword) {
             println("Passwords do not match")
@@ -54,10 +54,14 @@ fun SignUpScreen(
                 if (task.isSuccessful) {
                     val uid = auth.currentUser?.uid ?: ""
 
-                    // Save user profile in Firestore
+
+                    val firstName = name.split(" ").firstOrNull() ?: name
+
+
                     val userData = hashMapOf(
                         "uid" to uid,
                         "name" to name,
+                        "firstName" to firstName,
                         "email" to email
                     )
 
@@ -70,7 +74,7 @@ fun SignUpScreen(
                             println("Firestore save failed: ${e.message}")
                         }
 
-                    // Always navigate to ScanScreen after signup
+
                     navController.navigate("scan") {
                         popUpTo("signup") { inclusive = true }
                     }
@@ -81,16 +85,12 @@ fun SignUpScreen(
             }
     }
 
-
-
-
-
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
     ) {
-        // Header Gradient
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -117,7 +117,7 @@ fun SignUpScreen(
             }
         }
 
-        // Form Card
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -127,7 +127,7 @@ fun SignUpScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Full Name
+
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
@@ -144,7 +144,7 @@ fun SignUpScreen(
                 )
             )
 
-            // Email
+
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
@@ -161,7 +161,7 @@ fun SignUpScreen(
                 )
             )
 
-            // Password
+
             Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = password,
@@ -189,7 +189,7 @@ fun SignUpScreen(
                 )
             }
 
-            // Confirm Password
+
             Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = confirmPassword,
@@ -217,7 +217,7 @@ fun SignUpScreen(
                 )
             }
 
-            // Sign Up Button
+
             Button(
                 onClick = { handleSignUp() },
                 enabled = isFormValid && !loading,
@@ -238,7 +238,7 @@ fun SignUpScreen(
                 }
             }
 
-            // Already have account
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center
@@ -253,7 +253,7 @@ fun SignUpScreen(
             }
         }
 
-        // Terms
+
         Spacer(modifier = Modifier.height(16.dp))
         Box(
             modifier = Modifier

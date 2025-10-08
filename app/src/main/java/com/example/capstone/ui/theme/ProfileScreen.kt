@@ -1,8 +1,6 @@
-// ProfileScreen.kt
 package com.example.capstone.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -12,6 +10,7 @@ import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,8 +19,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 
-// Simple user model
 data class User(
     val name: String = "User Name",
     val email: String = "user@example.com",
@@ -38,11 +38,81 @@ data class BodyTypeInfo(
 )
 
 @Composable
-fun ProfileScreen(onNavigate: (String) -> Unit, user: User) {
+fun ProfileScreen(
+    onNavigate: (String) -> Unit,
+    user: User,
+    bodyMeasurements: Map<String, String>,
+    bodyRatios: Map<String, String>
+) {
+    val db = FirebaseFirestore.getInstance()
+    val auth = FirebaseAuth.getInstance()
+    val uid = auth.currentUser?.uid
+
+    var isLoading by remember { mutableStateOf(true) }
+    var measurements by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var ratios by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+
+    LaunchedEffect(uid) {
+        if (uid != null) {
+            db.collection("users").document(uid)
+                .collection("bodyComposition").document("latest")
+                .get()
+                .addOnSuccessListener { doc ->
+                    if (doc.exists()) {
+                        val data = doc.data ?: emptyMap<String, Any>()
+                        val tempMeasurements = mutableMapOf<String, String>()
+                        val tempRatios = mutableMapOf<String, String>()
+
+                        data.forEach { (key, value) ->
+                            if (key.contains("Ratio", ignoreCase = true)) {
+                                tempRatios[key] = value.toString()
+                            } else if (key != "timestamp") {
+                                tempMeasurements[key] = value.toString()
+                            }
+                        }
+
+                        measurements = tempMeasurements
+                        ratios = tempRatios
+                    }
+                    isLoading = false
+                }
+                .addOnFailureListener {
+                    isLoading = false
+                }
+        } else {
+            isLoading = false
+        }
+    }
+
+    if (isLoading) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else {
+        ProfileContent(
+            onNavigate = onNavigate,
+            user = user,
+            bodyMeasurements = if (measurements.isNotEmpty()) measurements else bodyMeasurements,
+            bodyRatios = if (ratios.isNotEmpty()) ratios else bodyRatios
+        )
+    }
+}
+
+@Composable
+fun ProfileContent(
+    onNavigate: (String) -> Unit,
+    user: User,
+    bodyMeasurements: Map<String, String>,
+    bodyRatios: Map<String, String>
+) {
     var isEditing by remember { mutableStateOf(false) }
     var height by remember { mutableStateOf(user.height) }
     var weight by remember { mutableStateOf(user.weight) }
     var age by remember { mutableStateOf(user.age) }
+
+    // 🔹 Unit toggles with rememberSaveable
+    var useInches by rememberSaveable { mutableStateOf(false) }
+    var showPercentages by rememberSaveable { mutableStateOf(false) }
 
     val bodyTypeInfo = mapOf(
         "Rectangle" to BodyTypeInfo(
@@ -65,7 +135,8 @@ fun ProfileScreen(onNavigate: (String) -> Unit, user: User) {
             .background(Color(0xFFF9FAFB))
             .padding(bottom = 16.dp)
     ) {
-        // Header (gradient)
+
+        // ===== Header =====
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -95,7 +166,7 @@ fun ProfileScreen(onNavigate: (String) -> Unit, user: User) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Profile Card
+        // ===== User Info Card =====
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -127,14 +198,13 @@ fun ProfileScreen(onNavigate: (String) -> Unit, user: User) {
                         Text(user.email, fontSize = 14.sp, color = Color.Gray)
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Stats row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            StatBox("23", "Outfits", Color(0xFF10B981), Modifier.weight(1f))
-                            StatBox("47", "Items", Color(0xFF2563EB), Modifier.weight(1f))
-                            StatBox("89%", "Confidence", Color(0xFF7C3AED), Modifier.weight(1f))
+                            StatBox("0", "Outfits", Color(0xFF10B981), Modifier.weight(1f))
+                            StatBox("0", "Items", Color(0xFF2563EB), Modifier.weight(1f))
+                            StatBox("0%", "Challenge", Color(0xFF7C3AED), Modifier.weight(1f))
                         }
                     }
                 }
@@ -143,7 +213,7 @@ fun ProfileScreen(onNavigate: (String) -> Unit, user: User) {
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Body Analysis Card
+        // ===== Body Analysis =====
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -167,7 +237,6 @@ fun ProfileScreen(onNavigate: (String) -> Unit, user: User) {
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Body type box
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -184,7 +253,6 @@ fun ProfileScreen(onNavigate: (String) -> Unit, user: User) {
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Height / Weight / Age row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -209,7 +277,7 @@ fun ProfileScreen(onNavigate: (String) -> Unit, user: User) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // --- Body Measurements Section ---
+        // ===== Body Measurements =====
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -218,11 +286,23 @@ fun ProfileScreen(onNavigate: (String) -> Unit, user: User) {
             elevation = 6.dp
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Body Measurements", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                // 🔹 Toggle side-by-side
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Body Measurements", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("cm", color = if (!useInches) Color(0xFF10B981) else Color.Gray)
+                        Switch(checked = useInches, onCheckedChange = { useInches = it })
+                        Text("in", color = if (useInches) Color(0xFF10B981) else Color.Gray)
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                val bodyMeasurements = listOf(
+                val defaultMeasurements = listOf(
                     "Shoulder Width",
                     "Hip Width",
                     "Torso Length",
@@ -231,15 +311,24 @@ fun ProfileScreen(onNavigate: (String) -> Unit, user: User) {
                     "Estimated Skin Color"
                 )
 
-                bodyMeasurements.forEach { label ->
-                    InfoRow(label, "N/A")
+                defaultMeasurements.forEach { label ->
+                    val value = bodyMeasurements[label] ?: "N/A"
+                    val displayValue = if (value != "N/A" && label != "Estimated Skin Color") {
+                        val numericValue = value.filter { it.isDigit() || it == '.' }.toDoubleOrNull()
+                        if (numericValue != null) {
+                            if (useInches) String.format("%.2f in", numericValue / 2.54)
+                            else String.format("%.2f cm", numericValue)
+                        } else value
+                    } else value
+
+                    InfoRow(label, displayValue)
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // --- Body Ratios Section ---
+        // ===== Body Ratios =====
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -248,90 +337,49 @@ fun ProfileScreen(onNavigate: (String) -> Unit, user: User) {
             elevation = 6.dp
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Body Ratios", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                // 🔹 Toggle side-by-side
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Body Ratios", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Ratio", color = if (!showPercentages) Color(0xFF10B981) else Color.Gray)
+                        Switch(checked = showPercentages, onCheckedChange = { showPercentages = it })
+                        Text("%", color = if (showPercentages) Color(0xFF10B981) else Color.Gray)
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                val bodyRatios = listOf(
+                val defaultRatios = listOf(
                     "Shoulder-to-Hip Ratio",
                     "Torso-to-Leg Ratio",
                     "Arm-to-Leg Ratio",
                     "Shoulder-to-Height Ratio"
                 )
 
-                bodyRatios.forEach { label ->
-                    InfoRow(label, "N/A")
-                }
-            }
-        }
+                defaultRatios.forEach { label ->
+                    val value = bodyRatios[label] ?: "N/A"
+                    val displayValue = if (value != "N/A") {
+                        val numericValue = value.filter { it.isDigit() || it == '.' }.toDoubleOrNull()
+                        if (numericValue != null) {
+                            if (showPercentages) String.format("%.1f%%", numericValue * 100)
+                            else String.format("%.3f", numericValue)
+                        } else value
+                    } else value
 
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Style Tips
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(20.dp),
-            elevation = 6.dp
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Visibility, contentDescription = null, tint = Color(0xFF10B981))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Style Tips for You", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                info.tips.forEachIndexed { index, tip ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFFD1FAE5), shape = RoundedCornerShape(12.dp))
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF10B981)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text((index + 1).toString(), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(tip, color = Color(0xFF065F46))
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFFDBEAFE), shape = RoundedCornerShape(12.dp))
-                        .padding(12.dp)
-                ) {
-                    Text(
-                        "💡 These recommendations are based on your ${user.bodyType} body type. Remember, style is personal - wear what makes you feel confident!",
-                        color = Color(0xFF1E3A8A)
-                    )
+                    InfoRow(label, displayValue)
                 }
             }
         }
     }
 }
 
-// --- Helpers ---
 @Composable
 fun StatBox(value: String, label: String, color: Color, modifier: Modifier = Modifier) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.padding(4.dp)
-    ) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier.padding(4.dp)) {
         Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = color)
         Text(label, fontSize = 12.sp, color = Color.Gray)
     }

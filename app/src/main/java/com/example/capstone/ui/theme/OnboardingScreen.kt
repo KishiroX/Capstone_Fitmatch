@@ -1,4 +1,4 @@
-// OnboardingScreen.kt
+
 package com.example.capstone.ui.screens
 
 import androidx.compose.foundation.background
@@ -19,7 +19,7 @@ import androidx.compose.ui.tooling.preview.Preview
 
 @Composable
 fun OnboardingScreen(
-    onGetStartedClick: () -> Unit = {},   //  renamed for MainActivity
+    onGetStartedClick: () -> Unit = {},
     onRegisterClick: () -> Unit = {}
 ) {
     Column(
@@ -27,7 +27,7 @@ fun OnboardingScreen(
             .fillMaxSize()
             .background(Color.White)
     ) {
-        // Header with gradient
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -40,7 +40,7 @@ fun OnboardingScreen(
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                // Logo circle
+
                 Box(
                     modifier = Modifier
                         .size(56.dp)
@@ -48,7 +48,7 @@ fun OnboardingScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        painter = painterResource(id = android.R.drawable.ic_menu_gallery), // TODO replace with ic_shirt
+                        painter = painterResource(id = android.R.drawable.ic_menu_gallery),
                         contentDescription = "Logo",
                         tint = Color(0xFF00C39A),
                         modifier = Modifier.size(28.dp)
@@ -71,7 +71,7 @@ fun OnboardingScreen(
             }
         }
 
-        // Feature list
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -98,7 +98,7 @@ fun OnboardingScreen(
             )
         }
 
-        // Illustration box
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -115,7 +115,7 @@ fun OnboardingScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        painter = painterResource(id = android.R.drawable.ic_menu_gallery), // TODO replace with ic_shirt
+                        painter = painterResource(id = android.R.drawable.ic_menu_gallery),
                         contentDescription = "Illustration",
                         tint = Color.White,
                         modifier = Modifier.size(36.dp)
@@ -134,7 +134,7 @@ fun OnboardingScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Buttons
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -142,7 +142,7 @@ fun OnboardingScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Button(
-                onClick = onGetStartedClick,   //  now calls correct callback
+                onClick = onGetStartedClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
@@ -180,7 +180,7 @@ fun FeatureItem(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                painter = painterResource(id = android.R.drawable.ic_menu_gallery), // TODO replace with correct icons
+                painter = painterResource(id = android.R.drawable.ic_menu_gallery),
                 contentDescription = title,
                 tint = iconColor,
                 modifier = Modifier.size(22.dp)

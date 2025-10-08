@@ -28,18 +28,18 @@ fun CameraPreviewWithCapture(
     imageCapture: ImageCapture,
     modifier: Modifier = Modifier,
     onPoseDetected: (Boolean) -> Unit,
-    useFrontCamera: Boolean // pass this from ScanScreen
+    useFrontCamera: Boolean
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // single-threaded executor for analyzer
+
     val cameraExecutor: ExecutorService = remember { Executors.newSingleThreadExecutor() }
     DisposableEffect(Unit) {
         onDispose { cameraExecutor.shutdown() }
     }
 
-    // ML Kit Pose detector (stream mode)
+    // ML Kit Pose detector
     val options = remember {
         PoseDetectorOptions.Builder()
             .setDetectorMode(PoseDetectorOptions.STREAM_MODE)
@@ -102,7 +102,7 @@ private fun bindCamera(
     useFrontCamera: Boolean
 ) {
     try {
-        // Unbind everything before (re)binding
+
         cameraProvider.unbindAll()
 
         // Choose camera
@@ -200,12 +200,12 @@ fun checkAlignment(
                     "previewW=$previewWidth previewH=$previewHeight"
         )
 
-        val toleranceX = previewWidth * 0.15f     // loosened to 15%
-        val minShoulderSpan = previewWidth * 0.1f // looser
+        val toleranceX = previewWidth * 0.15f
+        val minShoulderSpan = previewWidth * 0.1f
         val maxShoulderSpan = previewWidth * 0.9f
         val minTorso = previewHeight * 0.1f
         val maxTorso = previewHeight * 0.9f
-        val toleranceY = previewHeight * 0.2f     // loosened vertical tolerance
+        val toleranceY = previewHeight * 0.2f
 
         val horizontalAligned = (bodyCenterX - centerX).absoluteValue < toleranceX &&
                 shoulderSpan in minShoulderSpan..maxShoulderSpan

@@ -42,17 +42,17 @@ import com.example.capstone.R
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScanScreen(navController: NavController) {
-    val imageCapture = remember { ImageCapture.Builder().build() } //<Camera X
+    val imageCapture = remember { ImageCapture.Builder().build() }
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var isAligned by remember { mutableStateOf(false) }
 
-    // Add camera toggle state
+
     var useFrontCamera by remember { mutableStateOf(false) }
 
     val auth = FirebaseAuth.getInstance()
     val db = FirebaseFirestore.getInstance()
 
-    // Launcher for picking image from gallery
+
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
@@ -109,16 +109,16 @@ fun ScanScreen(navController: NavController) {
             contentAlignment = Alignment.Center
         ) {
             if (capturedBitmap == null) {
-                // Camera preview with mannequin overlay
+
                 Box(modifier = Modifier.fillMaxSize()) {
                     CameraPreviewWithCapture(
                         imageCapture = imageCapture,
                         modifier = Modifier.fillMaxSize(),
                         onPoseDetected = { aligned -> isAligned = aligned },
-                        useFrontCamera = useFrontCamera // pass toggle state
+                        useFrontCamera = useFrontCamera
                     )
 
-                    // Switch camera button (top-right)
+
                     IconButton(
                         onClick = { useFrontCamera = !useFrontCamera },
                         modifier = Modifier
@@ -135,7 +135,7 @@ fun ScanScreen(navController: NavController) {
                         )
                     }
 
-                    // Outline image overlay
+
                     Image(
                         painter = painterResource(id = R.drawable.body_outline),
                         contentDescription = null,
@@ -148,7 +148,6 @@ fun ScanScreen(navController: NavController) {
                         )
                     )
 
-                    // Instruction text
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -164,7 +163,7 @@ fun ScanScreen(navController: NavController) {
                     }
                 }
             } else {
-                //  Captured Preview
+
                 Image(
                     bitmap = capturedBitmap!!.asImageBitmap(),
                     contentDescription = "Captured Preview",
@@ -177,7 +176,7 @@ fun ScanScreen(navController: NavController) {
 
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             if (capturedBitmap == null) {
-                // Capture button
+
                 Button(
                     onClick = {
                         imageCapture.takePicture(
@@ -206,7 +205,7 @@ fun ScanScreen(navController: NavController) {
                     Text("Capture", color = Color(0xFF00C8A0))
                 }
 
-                // Gallery picker button
+
                 Button(
                     onClick = { galleryLauncher.launch("image/*") },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White),
@@ -221,14 +220,14 @@ fun ScanScreen(navController: NavController) {
                     Text("Pick from Gallery", color = Color(0xFF00C8A0))
                 }
             } else {
-                //  Confirm button
+
                 Button(
                     onClick = {
                         val userId = auth.currentUser?.uid
                         if (userId != null && capturedBitmap != null) {
                             uploadScanToFirebase(capturedBitmap!!, userId) { downloadUrl ->
                                 if (downloadUrl != null) {
-                                    // Save metadata in Firestore
+
                                     val scanId = UUID.randomUUID().toString()
                                     val scanData = mapOf(
                                         "scanId" to scanId,
@@ -237,11 +236,11 @@ fun ScanScreen(navController: NavController) {
                                     )
                                     db.collection("users")
                                         .document(userId)
-                                        .collection("wardrobe") //  Save under wardrobe collection
+                                        .collection("wardrobe")
                                         .document(scanId)
                                         .set(scanData)
 
-                                    // Go to wardrobe or result screen
+
                                     navController.navigate("wardrobe")
                                 }
                             }
@@ -258,7 +257,7 @@ fun ScanScreen(navController: NavController) {
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Retake button
+
                 Button(
                     onClick = { capturedBitmap = null },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White),
@@ -276,7 +275,7 @@ fun ScanScreen(navController: NavController) {
     }
 }
 
-// Convert ImageProxy to Bitmap
+
 fun imageProxyToBitmap(image: ImageProxy): Bitmap {
     val planeProxy = image.planes.firstOrNull() ?: return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
     val buffer: ByteBuffer = planeProxy.buffer
@@ -285,13 +284,13 @@ fun imageProxyToBitmap(image: ImageProxy): Bitmap {
     return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
 }
 
-// Upload scanned bitmap to Firebase Storage
+
 fun uploadScanToFirebase(bitmap: Bitmap, userId: String, onComplete: (String?) -> Unit) {
     val storageRef = com.google.firebase.storage.FirebaseStorage.getInstance().reference
     val scanId = UUID.randomUUID().toString()
     val scanRef = storageRef.child("users/$userId/scans/$scanId.jpg")
 
-    // Convert bitmap to byte array
+
     val baos = java.io.ByteArrayOutputStream()
     bitmap.compress(Bitmap.CompressFormat.JPEG, 90, baos)
     val data = baos.toByteArray()
@@ -299,7 +298,7 @@ fun uploadScanToFirebase(bitmap: Bitmap, userId: String, onComplete: (String?) -
     val uploadTask = scanRef.putBytes(data)
     uploadTask.addOnSuccessListener {
         scanRef.downloadUrl.addOnSuccessListener { uri ->
-            onComplete(uri.toString()) //  returns the download URL
+            onComplete(uri.toString())
         }
     }.addOnFailureListener {
         onComplete(null)
