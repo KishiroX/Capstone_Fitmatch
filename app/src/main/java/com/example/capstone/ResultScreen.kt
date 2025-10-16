@@ -16,7 +16,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -39,7 +38,12 @@ fun ResultScreen(navController: NavController) {
             ?.savedStateHandle
             ?.get<Bitmap>("capturedBitmap")
     }
+
+    // Holds analyzer results (Map<String, Any>)
     val resultData = remember { mutableStateOf<Map<String, Any>>(emptyMap()) }
+
+    // Editable text states (one for each field)
+    val editableFields = remember { mutableStateMapOf<String, String>() }
 
     LaunchedEffect(savedBitmap) {
         savedBitmap?.let { bitmap ->
@@ -47,14 +51,21 @@ fun ResultScreen(navController: NavController) {
                 try {
                     val poseResult = bodyAnalyzer.analyze(bitmap)
                     val data = bodyAnalyzer.calculateFullBodyComposition(bitmap, poseResult)
-                    if (data.isEmpty()) {
-                        mapOf("Error" to "Pose not fully detected")
-                    } else data
+                    if (data.isEmpty()) mapOf("Error" to "Pose not fully detected")
+                    else data
                 } catch (e: Exception) {
                     mapOf("Error" to "Analysis failed: ${e.localizedMessage}")
                 }
             }
             resultData.value = bodyData
+            // Initialize editable fields with detected values
+            editableFields.clear()
+            bodyData.forEach { (key, value) ->
+                editableFields[key] = when (value) {
+                    is Float -> String.format("%.2f", value)
+                    else -> value.toString()
+                }
+            }
             Log.d("ResultScreen", "📊 Analysis finished: $bodyData")
         }
     }
@@ -67,6 +78,7 @@ fun ResultScreen(navController: NavController) {
             .background(Color.White)
     ) {
 
+        // Top progress bar
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -93,6 +105,7 @@ fun ResultScreen(navController: NavController) {
             }
         }
 
+        // Content area
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -122,31 +135,21 @@ fun ResultScreen(navController: NavController) {
                         color = Color.Gray
                     )
 
-                    // 🔹 Info message for editable fields
-                    Text(
-                        text = "✏️ You can edit your measurements before saving.",
-                        fontSize = 13.sp,
-                        color = Color.Gray,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
+                    // Measurements
                     SectionHeader("Measurements")
                     val measurements = listOf(
                         "Shoulder Width", "Hip Width", "Torso Length",
                         "Leg Length", "Arm Length", "Estimated Skin Color"
                     )
                     measurements.forEach { key ->
-                        EditableResultField(key, resultData)
+                        EditableResultField(
+                            label = key,
+                            value = editableFields[key] ?: "",
+                            onValueChange = { editableFields[key] = it }
+                        )
                     }
 
-                    // 🔹 Info message for ratios as well
-                    Text(
-                        text = "✏️ Ratios are also editable if needed.",
-                        fontSize = 13.sp,
-                        color = Color.Gray,
-                        modifier = Modifier.padding(top = 12.dp, bottom = 8.dp)
-                    )
-
+                    // Ratios
                     SectionHeader("Body Ratios")
                     val ratios = listOf(
                         "Shoulder-to-Hip Ratio",
@@ -155,15 +158,20 @@ fun ResultScreen(navController: NavController) {
                         "Shoulder-to-Height Ratio"
                     )
                     ratios.forEach { key ->
-                        EditableResultField(key, resultData)
+                        EditableResultField(
+                            label = key,
+                            value = editableFields[key] ?: "",
+                            onValueChange = { editableFields[key] = it }
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // Confirm Button
                     Button(
                         onClick = {
                             val userId = FirebaseAuth.getInstance().currentUser?.uid
-                            val data = resultData.value
+                            val data = editableFields
 
                             Log.d("ResultScreen", "Confirm clicked. UserId: $userId, Data: $data")
 
@@ -171,10 +179,7 @@ fun ResultScreen(navController: NavController) {
                                 val db = FirebaseFirestore.getInstance()
 
                                 val safeData = data.mapValues { (_, v) ->
-                                    when (v) {
-                                        is Float, is Double, is Int, is Long, is String, is Boolean -> v
-                                        else -> v.toString()
-                                    }
+                                    v.toString()
                                 }
 
                                 val dataToSave = safeData + mapOf(
@@ -233,35 +238,27 @@ fun SectionHeader(title: String) {
         color = Color(0xFF111827)
     )
 }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditableResultField(label: String, resultData: MutableState<Map<String, Any>>) {
-    var textValue by remember { mutableStateOf(resultData.value[label]?.toString() ?: "N/A") }
-
+fun EditableResultField(label: String, value: String, onValueChange: (String) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(text = label, color = Color(0xFF374151), fontSize = 14.sp)
-        TextField(
-            value = textValue,
-            onValueChange = {
-                textValue = it
-                resultData.value = resultData.value.toMutableMap().apply { put(label, it) }
-            },
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFFF9FAFB)),
-            colors = TextFieldDefaults.colors(
+                .clip(RoundedCornerShape(16.dp)),
+            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+            colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = Color(0xFFF9FAFB),
                 unfocusedContainerColor = Color(0xFFF9FAFB),
-                disabledContainerColor = Color(0xFFF9FAFB),
+                focusedBorderColor = Color(0xFF00C8A0),
+                unfocusedBorderColor = Color.LightGray,
                 cursorColor = Color(0xFF00C8A0),
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                disabledIndicatorColor = Color.Transparent
-            ),
-            textStyle = LocalTextStyle.current.copy(
-                fontSize = 14.sp,
-                color = Color.Black
+                focusedTextColor = Color.Black,
+                unfocusedTextColor = Color.Black
             ),
             singleLine = true
         )

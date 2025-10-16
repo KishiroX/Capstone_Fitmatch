@@ -35,6 +35,14 @@ fun SignUpScreen(
     var showConfirmPassword by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
 
+    // 🔹 New fields
+    var age by remember { mutableStateOf("") }
+    var gender by remember { mutableStateOf("") }
+    var expanded by remember { mutableStateOf(false) }
+    val genderOptions = listOf("Male", "Female", "Other")
+    var weight by remember { mutableStateOf("") }
+    var height by remember { mutableStateOf("") }
+
     val isFormValid = name.isNotEmpty() && email.isNotEmpty() &&
             password.isNotEmpty() && confirmPassword.isNotEmpty()
 
@@ -54,26 +62,28 @@ fun SignUpScreen(
                 if (task.isSuccessful) {
                     val uid = auth.currentUser?.uid ?: ""
 
-
                     val firstName = name.split(" ").firstOrNull() ?: name
 
-
+                    // 🔹 Include new data
                     val userData = hashMapOf(
                         "uid" to uid,
                         "name" to name,
                         "firstName" to firstName,
-                        "email" to email
+                        "email" to email,
+                        "age" to age,
+                        "gender" to gender,
+                        "weight" to weight,
+                        "height" to height
                     )
 
                     db.collection("users").document(uid)
                         .set(userData)
                         .addOnSuccessListener {
-                            println("User saved in Firestore")
+                            println("User saved in Firestore with gender, age, weight, and height")
                         }
                         .addOnFailureListener { e ->
                             println("Firestore save failed: ${e.message}")
                         }
-
 
                     navController.navigate("scan") {
                         popUpTo("signup") { inclusive = true }
@@ -117,7 +127,6 @@ fun SignUpScreen(
             }
         }
 
-
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -127,7 +136,6 @@ fun SignUpScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
@@ -143,7 +151,6 @@ fun SignUpScreen(
                     placeholderColor = Color.Gray
                 )
             )
-
 
             OutlinedTextField(
                 value = email,
@@ -161,7 +168,95 @@ fun SignUpScreen(
                 )
             )
 
+            // 🔹 Age
+            OutlinedTextField(
+                value = age,
+                onValueChange = { age = it },
+                placeholder = { Text("Enter your age") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    textColor = Color.Black,
+                    focusedBorderColor = Color(0xFF10B981),
+                    unfocusedBorderColor = Color(0xFFD1D5DB),
+                    cursorColor = Color(0xFF10B981),
+                    placeholderColor = Color.Gray
+                )
+            )
 
+            // 🔹 Gender Spinner
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = gender,
+                    onValueChange = {},
+                    placeholder = { Text("Select Gender") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { expanded = true },
+                    enabled = false,
+                    readOnly = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                        disabledTextColor = Color.Black,
+                        disabledBorderColor = Color(0xFFD1D5DB),
+                        disabledPlaceholderColor = Color.Gray,
+                        cursorColor = Color(0xFF10B981)
+                    )
+                )
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White)
+                ) {
+                    genderOptions.forEach { option ->
+                        DropdownMenuItem(onClick = {
+                            gender = option
+                            expanded = false
+                        }) {
+                            Text(option)
+                        }
+                    }
+                }
+            }
+
+            // 🔹 Weight
+            OutlinedTextField(
+                value = weight,
+                onValueChange = { weight = it },
+                placeholder = { Text("Enter your weight (kg)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    textColor = Color.Black,
+                    focusedBorderColor = Color(0xFF10B981),
+                    unfocusedBorderColor = Color(0xFFD1D5DB),
+                    cursorColor = Color(0xFF10B981),
+                    placeholderColor = Color.Gray
+                )
+            )
+
+            // 🔹 Height
+            OutlinedTextField(
+                value = height,
+                onValueChange = { height = it },
+                placeholder = { Text("Enter your height (inches)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    textColor = Color.Black,
+                    focusedBorderColor = Color(0xFF10B981),
+                    unfocusedBorderColor = Color(0xFFD1D5DB),
+                    cursorColor = Color(0xFF10B981),
+                    placeholderColor = Color.Gray
+                )
+            )
+
+            // 🔹 Password Field
             Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = password,
@@ -189,7 +284,7 @@ fun SignUpScreen(
                 )
             }
 
-
+            // 🔹 Confirm Password Field
             Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = confirmPassword,
@@ -217,7 +312,7 @@ fun SignUpScreen(
                 )
             }
 
-
+            // 🔹 Sign Up Button
             Button(
                 onClick = { handleSignUp() },
                 enabled = isFormValid && !loading,
@@ -238,7 +333,6 @@ fun SignUpScreen(
                 }
             }
 
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center
@@ -252,7 +346,6 @@ fun SignUpScreen(
                 )
             }
         }
-
 
         Spacer(modifier = Modifier.height(16.dp))
         Box(

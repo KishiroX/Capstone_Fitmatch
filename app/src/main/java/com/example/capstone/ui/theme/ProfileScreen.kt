@@ -25,9 +25,10 @@ import com.google.firebase.firestore.FirebaseFirestore
 data class User(
     val name: String = "User Name",
     val email: String = "user@example.com",
-    val height: String = "170",
-    val weight: String = "65",
-    val age: String = "25",
+    val height: String = "N/A",
+    val weight: String = "N/A",
+    val age: String = "N/A",
+    val gender: String = "Not Set",
     val bodyType: String = "Rectangle"
 )
 
@@ -49,36 +50,52 @@ fun ProfileScreen(
     val uid = auth.currentUser?.uid
 
     var isLoading by remember { mutableStateOf(true) }
+    var fullUserData by remember { mutableStateOf(user) }
     var measurements by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var ratios by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
 
     LaunchedEffect(uid) {
         if (uid != null) {
-            db.collection("users").document(uid)
-                .collection("bodyComposition").document("latest")
-                .get()
-                .addOnSuccessListener { doc ->
-                    if (doc.exists()) {
-                        val data = doc.data ?: emptyMap<String, Any>()
-                        val tempMeasurements = mutableMapOf<String, String>()
-                        val tempRatios = mutableMapOf<String, String>()
+            val userDoc = db.collection("users").document(uid)
+            userDoc.get().addOnSuccessListener { userSnap ->
+                if (userSnap.exists()) {
+                    val userData = userSnap.data ?: emptyMap<String, Any>()
+                    fullUserData = user.copy(
+                        name = userData["name"]?.toString() ?: user.name,
+                        email = userData["email"]?.toString() ?: user.email,
+                        height = userData["height"]?.toString() ?: "N/A",
+                        weight = userData["weight"]?.toString() ?: "N/A",
+                        age = userData["age"]?.toString() ?: "N/A",
+                        gender = userData["gender"]?.toString() ?: "Not Set"
+                    )
+                }
 
-                        data.forEach { (key, value) ->
-                            if (key.contains("Ratio", ignoreCase = true)) {
-                                tempRatios[key] = value.toString()
-                            } else if (key != "timestamp") {
-                                tempMeasurements[key] = value.toString()
+                // Load bodyComposition if available
+                userDoc.collection("bodyComposition").document("latest")
+                    .get()
+                    .addOnSuccessListener { doc ->
+                        if (doc.exists()) {
+                            val data = doc.data ?: emptyMap<String, Any>()
+                            val tempMeasurements = mutableMapOf<String, String>()
+                            val tempRatios = mutableMapOf<String, String>()
+
+                            data.forEach { (key, value) ->
+                                if (key.contains("Ratio", ignoreCase = true)) {
+                                    tempRatios[key] = value.toString()
+                                } else if (key != "timestamp") {
+                                    tempMeasurements[key] = value.toString()
+                                }
                             }
-                        }
 
-                        measurements = tempMeasurements
-                        ratios = tempRatios
+                            measurements = tempMeasurements
+                            ratios = tempRatios
+                        }
+                        isLoading = false
                     }
-                    isLoading = false
-                }
-                .addOnFailureListener {
-                    isLoading = false
-                }
+                    .addOnFailureListener { isLoading = false }
+            }.addOnFailureListener {
+                isLoading = false
+            }
         } else {
             isLoading = false
         }
@@ -91,7 +108,7 @@ fun ProfileScreen(
     } else {
         ProfileContent(
             onNavigate = onNavigate,
-            user = user,
+            user = fullUserData,
             bodyMeasurements = if (measurements.isNotEmpty()) measurements else bodyMeasurements,
             bodyRatios = if (ratios.isNotEmpty()) ratios else bodyRatios
         )
@@ -109,8 +126,8 @@ fun ProfileContent(
     var height by remember { mutableStateOf(user.height) }
     var weight by remember { mutableStateOf(user.weight) }
     var age by remember { mutableStateOf(user.age) }
+    var gender by remember { mutableStateOf(user.gender) }
 
-    // 🔹 Unit toggles with rememberSaveable
     var useInches by rememberSaveable { mutableStateOf(false) }
     var showPercentages by rememberSaveable { mutableStateOf(false) }
 
@@ -126,6 +143,7 @@ fun ProfileContent(
             emoji = "👤"
         )
     )
+
     val info = bodyTypeInfo[user.bodyType] ?: bodyTypeInfo["Rectangle"]!!
 
     Column(
@@ -135,8 +153,7 @@ fun ProfileContent(
             .background(Color(0xFFF9FAFB))
             .padding(bottom = 16.dp)
     ) {
-
-        // ===== Header =====
+        // Header
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -158,7 +175,7 @@ fun ProfileContent(
                     }
                     Text("Profile", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
                 }
-                IconButton(onClick = { /* open settings */ }) {
+                IconButton(onClick = { /* Settings */ }) {
                     Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
                 }
             }
@@ -166,7 +183,7 @@ fun ProfileContent(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // ===== User Info Card =====
+        // User Info
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -213,7 +230,7 @@ fun ProfileContent(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // ===== Body Analysis =====
+        // Body Info
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -257,123 +274,27 @@ fun ProfileContent(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    StatCard(height + " cm", "Height", Modifier.weight(1f))
-                    StatCard(weight + " kg", "Weight", Modifier.weight(1f))
-                    StatCard(age, "Age", Modifier.weight(1f))
+                    StatCard("${user.height} in", "Height", Modifier.weight(1f))
+                    StatCard("${user.weight} kg", "Weight", Modifier.weight(1f))
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                OutlinedButton(
-                    onClick = { isEditing = !isEditing },
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Edit Information")
+                    StatCard(user.age, "Age", Modifier.weight(1f))
+                    StatCard(user.gender, "Gender", Modifier.weight(1f))
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // ===== Body Measurements =====
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(20.dp),
-            elevation = 6.dp
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                // 🔹 Toggle side-by-side
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Body Measurements", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("cm", color = if (!useInches) Color(0xFF10B981) else Color.Gray)
-                        Switch(checked = useInches, onCheckedChange = { useInches = it })
-                        Text("in", color = if (useInches) Color(0xFF10B981) else Color.Gray)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                val defaultMeasurements = listOf(
-                    "Shoulder Width",
-                    "Hip Width",
-                    "Torso Length",
-                    "Leg Length",
-                    "Arm Length",
-                    "Estimated Skin Color"
-                )
-
-                defaultMeasurements.forEach { label ->
-                    val value = bodyMeasurements[label] ?: "N/A"
-                    val displayValue = if (value != "N/A" && label != "Estimated Skin Color") {
-                        val numericValue = value.filter { it.isDigit() || it == '.' }.toDoubleOrNull()
-                        if (numericValue != null) {
-                            if (useInches) String.format("%.2f in", numericValue / 2.54)
-                            else String.format("%.2f cm", numericValue)
-                        } else value
-                    } else value
-
-                    InfoRow(label, displayValue)
-                }
-            }
-        }
-
+        BodyMeasurementsSection(bodyMeasurements, useInches)
         Spacer(modifier = Modifier.height(12.dp))
-
-        // ===== Body Ratios =====
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(20.dp),
-            elevation = 6.dp
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                // 🔹 Toggle side-by-side
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Body Ratios", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Ratio", color = if (!showPercentages) Color(0xFF10B981) else Color.Gray)
-                        Switch(checked = showPercentages, onCheckedChange = { showPercentages = it })
-                        Text("%", color = if (showPercentages) Color(0xFF10B981) else Color.Gray)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                val defaultRatios = listOf(
-                    "Shoulder-to-Hip Ratio",
-                    "Torso-to-Leg Ratio",
-                    "Arm-to-Leg Ratio",
-                    "Shoulder-to-Height Ratio"
-                )
-
-                defaultRatios.forEach { label ->
-                    val value = bodyRatios[label] ?: "N/A"
-                    val displayValue = if (value != "N/A") {
-                        val numericValue = value.filter { it.isDigit() || it == '.' }.toDoubleOrNull()
-                        if (numericValue != null) {
-                            if (showPercentages) String.format("%.1f%%", numericValue * 100)
-                            else String.format("%.3f", numericValue)
-                        } else value
-                    } else value
-
-                    InfoRow(label, displayValue)
-                }
-            }
-        }
+        BodyRatiosSection(bodyRatios, showPercentages)
     }
 }
 
@@ -408,5 +329,103 @@ fun InfoRow(label: String, value: String) {
     ) {
         Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color.Black)
         Text(value, fontSize = 14.sp, color = Color.Gray)
+    }
+}
+
+@Composable
+private fun BodyMeasurementsSection(bodyMeasurements: Map<String, String>, useInches: Boolean) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(20.dp),
+        elevation = 6.dp
+    ) {
+        var useInch by rememberSaveable { mutableStateOf(useInches) }
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Body Measurements", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("cm", color = if (!useInch) Color(0xFF10B981) else Color.Gray)
+                    Switch(checked = useInch, onCheckedChange = { useInch = it })
+                    Text("in", color = if (useInch) Color(0xFF10B981) else Color.Gray)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            val defaultMeasurements = listOf(
+                "Shoulder Width",
+                "Hip Width",
+                "Torso Length",
+                "Leg Length",
+                "Arm Length",
+                "Estimated Skin Color"
+            )
+
+            defaultMeasurements.forEach { label ->
+                val value = bodyMeasurements[label] ?: "N/A"
+                val displayValue = if (value != "N/A" && label != "Estimated Skin Color") {
+                    val num = value.filter { it.isDigit() || it == '.' }.toDoubleOrNull()
+                    if (num != null) {
+                        if (useInch) String.format("%.2f in", num / 2.54)
+                        else String.format("%.2f cm", num)
+                    } else value
+                } else value
+                InfoRow(label, displayValue)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BodyRatiosSection(bodyRatios: Map<String, String>, showPercentages: Boolean) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(20.dp),
+        elevation = 6.dp
+    ) {
+        var showPct by rememberSaveable { mutableStateOf(showPercentages) }
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Body Ratios", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Ratio", color = if (!showPct) Color(0xFF10B981) else Color.Gray)
+                    Switch(checked = showPct, onCheckedChange = { showPct = it })
+                    Text("%", color = if (showPct) Color(0xFF10B981) else Color.Gray)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            val defaultRatios = listOf(
+                "Shoulder-to-Hip Ratio",
+                "Torso-to-Leg Ratio",
+                "Arm-to-Leg Ratio",
+                "Shoulder-to-Height Ratio"
+            )
+
+            defaultRatios.forEach { label ->
+                val value = bodyRatios[label] ?: "N/A"
+                val displayValue = if (value != "N/A") {
+                    val num = value.filter { it.isDigit() || it == '.' }.toDoubleOrNull()
+                    if (num != null) {
+                        if (showPct) String.format("%.1f%%", num * 100)
+                        else String.format("%.3f", num)
+                    } else value
+                } else value
+                InfoRow(label, displayValue)
+            }
+        }
     }
 }

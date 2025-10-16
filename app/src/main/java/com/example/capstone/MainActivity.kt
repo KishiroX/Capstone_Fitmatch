@@ -29,7 +29,7 @@ fun AppNavHost(navController: NavHostController = rememberNavController()) {
     val auth = FirebaseAuth.getInstance()
     val db = FirebaseFirestore.getInstance()
 
-    NavHost(navController = navController, startDestination = "assistant") {
+    NavHost(navController = navController, startDestination = "onboarding") {
 
         // -------------------- ONBOARDING --------------------
         composable("onboarding") {

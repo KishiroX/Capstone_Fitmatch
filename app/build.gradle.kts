@@ -5,9 +5,12 @@ plugins {
     alias(libs.plugins.google.gms.google.services)
 }
 
+
 android {
     namespace = "com.example.capstone"
     compileSdk = 36
+
+
 
     defaultConfig {
         applicationId = "com.example.capstone"
@@ -17,6 +20,17 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+//Namra acc reach quota
+ //       buildConfigField ("String", "GOOGLE_API_KEY", "\"AIzaSyBJMYBvYDLD3Rwqjmu3cjlqJCmVL8KBWyk\"")
+        //Armand Acc
+        buildConfigField ("String", "GOOGLE_API_KEY", "\"AIzaSyAdwPGAfSjx37JAYY9LLE-dFoOfAmqc_b8\"")
+
+        buildConfigField ("String", "GOOGLE_SEARCH_CX", "\"43166e3c70bf140ce\"")
+
+
+        // buildConfigField("String", "PIXABAY_API_KEY", "\"52755156-fe830c505bd981aa4a8b221a2\"")
+
+
     }
 
     buildTypes {
@@ -37,6 +51,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -54,6 +69,15 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.5.1")
     implementation("io.coil-kt:coil-compose:2.5.0")
     implementation("androidx.compose.material:material:1.4.0")
+
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp-urlconnection:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation("org.json:json:20230227")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    implementation("com.google.code.gson:gson:2.10.1")
+
     implementation(libs.mediapipe.tasks.vision)
     implementation(libs.material3)
     implementation(libs.firebase.auth)
