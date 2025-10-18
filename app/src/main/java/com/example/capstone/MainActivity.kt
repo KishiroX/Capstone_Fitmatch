@@ -8,6 +8,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.capstone.ui.screen.WardrobeScreen
 import com.example.capstone.ui.screens.*
 import com.example.capstone.ui.theme.AssistanceScreen
 import com.example.capstone.ui.screens.TryOnScreen
@@ -105,6 +106,21 @@ fun AppNavHost(navController: NavHostController = rememberNavController()) {
                         "home" -> navController.navigate("home") {
                             popUpTo("tryon") { inclusive = true }
                         }
+                    }
+                }
+            )
+        }
+
+        // -------------------- WARDROBE --------------------
+        composable("wardrobe") {
+            WardrobeScreen(
+                onNavigate = { destination ->
+                    when (destination) {
+                        "home" -> navController.navigate("home") {
+                            popUpTo("wardrobe") { inclusive = true }
+                        }
+                        "buildFit" -> navController.navigate("buildFit")
+                        "addItems" -> navController.navigate("addItems")
                     }
                 }
             )
