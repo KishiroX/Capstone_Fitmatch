@@ -1,6 +1,7 @@
 package com.example.capstone.ui.screens
 
 import android.graphics.Bitmap
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -14,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -33,11 +36,21 @@ fun ResultScreen(navController: NavController) {
     val context = LocalContext.current
     val bodyAnalyzer = remember { BodyAnalyzer(context) }
 
+    // Get bitmap from ScanScreen
     val savedBitmap = remember {
         navController.previousBackStackEntry
             ?.savedStateHandle
             ?.get<Bitmap>("capturedBitmap")
     }
+
+    // Get body scan URL from ScanScreen
+    val bodyScanUrl = remember {
+        navController.previousBackStackEntry
+            ?.savedStateHandle
+            ?.get<String>("bodyScanUrl")
+    }
+
+    Log.d("ResultScreen", "📸 Body Scan URL: $bodyScanUrl")
 
     // Holds analyzer results (Map<String, Any>)
     val resultData = remember { mutableStateOf<Map<String, Any>>(emptyMap()) }
@@ -130,10 +143,28 @@ fun ResultScreen(navController: NavController) {
                         color = Color(0xFF111827)
                     )
                     Text(
-                        "Here’s your scan result summary",
+                        "Here's your scan result summary",
                         fontSize = 14.sp,
                         color = Color.Gray
                     )
+
+                    // Show captured image preview (full size)
+                    savedBitmap?.let { bitmap ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .wrapContentHeight(),
+                            shape = RoundedCornerShape(16.dp),
+                            elevation = CardDefaults.cardElevation(4.dp)
+                        ) {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = "Your body scan",
+                                modifier = Modifier.fillMaxWidth(),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
+                    }
 
                     // Measurements
                     SectionHeader("Measurements")
@@ -173,42 +204,71 @@ fun ResultScreen(navController: NavController) {
                             val userId = FirebaseAuth.getInstance().currentUser?.uid
                             val data = editableFields
 
-                            Log.d("ResultScreen", "Confirm clicked. UserId: $userId, Data: $data")
+                            Log.d("ResultScreen", "Confirm clicked. UserId: $userId")
+                            Log.d("ResultScreen", "Body measurements: $data")
+                            Log.d("ResultScreen", "Body scan URL: $bodyScanUrl")
 
-                            if (userId != null && data.isNotEmpty() && !data.containsKey("Error")) {
+                            if (userId != null) {
                                 val db = FirebaseFirestore.getInstance()
 
-                                val safeData = data.mapValues { (_, v) ->
-                                    v.toString()
+                                // Save body composition data
+                                if (data.isNotEmpty() && !data.containsKey("Error")) {
+                                    val safeData = data.mapValues { (_, v) -> v.toString() }
+                                    val compositionData = safeData + mapOf(
+                                        "timestamp" to com.google.firebase.Timestamp.now(),
+                                        "bodyScanUrl" to (bodyScanUrl ?: "")
+                                    )
+
+                                    Log.d("ResultScreen", "💾 Saving body composition...")
+                                    db.collection("users")
+                                        .document(userId)
+                                        .collection("bodyComposition")
+                                        .document("latest")
+                                        .set(compositionData, SetOptions.merge())
+                                        .addOnSuccessListener {
+                                            Log.d("Firestore", "✅ Body composition saved")
+                                        }
+                                        .addOnFailureListener { e ->
+                                            Log.e("Firestore", "❌ Failed to save composition: ${e.message}")
+                                        }
                                 }
 
-                                val dataToSave = safeData + mapOf(
-                                    "timestamp" to com.google.firebase.Timestamp.now()
-                                )
+                                // IMPORTANT: Also save body scan URL to user profile for Try-On screen
+                                if (bodyScanUrl != null) {
+                                    val profileData = mapOf(
+                                        "bodyScanUrl" to bodyScanUrl,
+                                        "bodyScanTimestamp" to com.google.firebase.Timestamp.now()
+                                    )
 
-                                Log.d("ResultScreen", "🚀 Saving to Firestore: $dataToSave")
-
-                                db.collection("users")
-                                    .document(userId)
-                                    .collection("bodyComposition")
-                                    .document("latest")
-                                    .set(dataToSave, SetOptions.merge())
-                                    .addOnSuccessListener {
-                                        Log.d("Firestore", "✅ Saved successfully for $userId")
-                                        navController.navigate("home") {
-                                            popUpTo("result") { inclusive = true }
-                                            launchSingleTop = true
+                                    Log.d("ResultScreen", "💾 Saving body scan URL to profile...")
+                                    db.collection("users")
+                                        .document(userId)
+                                        .set(profileData, SetOptions.merge())
+                                        .addOnSuccessListener {
+                                            Log.d("Firestore", "✅ Body scan URL saved to profile")
+                                            // Navigate to home
+                                            navController.navigate("home") {
+                                                popUpTo("result") { inclusive = true }
+                                                launchSingleTop = true
+                                            }
                                         }
-                                    }
-                                    .addOnFailureListener { e ->
-                                        Log.e("Firestore", "❌ Save failed: ${e.message}", e)
-                                        navController.navigate("home") {
-                                            popUpTo("result") { inclusive = true }
-                                            launchSingleTop = true
+                                        .addOnFailureListener { e ->
+                                            Log.e("Firestore", "❌ Failed to save URL: ${e.message}")
+                                            // Still navigate even if save fails
+                                            navController.navigate("home") {
+                                                popUpTo("result") { inclusive = true }
+                                                launchSingleTop = true
+                                            }
                                         }
+                                } else {
+                                    Log.w("ResultScreen", "⚠️ No body scan URL to save")
+                                    navController.navigate("home") {
+                                        popUpTo("result") { inclusive = true }
+                                        launchSingleTop = true
                                     }
+                                }
                             } else {
-                                Log.w("ResultScreen", "⚠️ No valid user or data. Skipping save.")
+                                Log.w("ResultScreen", "⚠️ No valid user. Skipping save.")
                                 navController.navigate("home") {
                                     popUpTo("result") { inclusive = true }
                                     launchSingleTop = true

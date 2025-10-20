@@ -72,42 +72,28 @@ enum class Category(val key: String, val label: String, val icon: String) {
     DRESSES("Dresses", "Dresses", "👗"),
     OUTERWEAR("Outerwear", "Outerwear", "🧥"),
     SHOES("Shoes", "Shoes", "👟"),
-
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WardrobeScreen(onNavigate: (String) -> Unit) {
+fun WardrobeScreen(
+    onNavigate: (String) -> Unit,
+    capturedPhotoPath: String? = null,
+    onPhotoProcessed: () -> Unit = {}
+) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var selectedCategory by remember { mutableStateOf(Category.ALL) }
 
     // Firebase instances
     val db = remember { FirebaseFirestore.getInstance() }
     val userId = remember { FirebaseAuth.getInstance().currentUser?.uid }
 
-    // Cloudinary initialization
-    var cloudinaryInitialized by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        try {
-            if (!cloudinaryInitialized) {
-                val config = mapOf(
-                    "cloud_name" to "dt4vdr1qy",
-                    "api_key" to "411389739366478",        // ⚠️ Replace with your NEW API key
-                    "api_secret" to "5NlScSbjWrCzumI-M6569bm0NCU"
-                )
-                MediaManager.init(context, config)
-                cloudinaryInitialized = true
-                android.util.Log.d("Wardrobe", "✅ Cloudinary initialized")
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("Wardrobe", "❌ Failed to initialize Cloudinary", e)
-        }
-    }
+    val cloudinaryInitialized = remember { mutableStateOf(true) }
 
     // Function to upload image to Cloudinary (embedded)
     suspend fun uploadToCloudinary(file: File, folder: String): String = suspendCancellableCoroutine { continuation ->
-        if (!cloudinaryInitialized) {
+        if (!cloudinaryInitialized.value) {
             continuation.resumeWithException(Exception("Cloudinary not initialized"))
             return@suspendCancellableCoroutine
         }
@@ -176,10 +162,8 @@ fun WardrobeScreen(onNavigate: (String) -> Unit) {
     // Bottom Sheet State
     val sheetState = rememberModalBottomSheetState()
     var showBottomSheet by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
 
     // Navigation States for Add Flow
-    var showCameraScreen by remember { mutableStateOf(false) }
     var showFormScreen by remember { mutableStateOf(false) }
     var capturedImageFile by remember { mutableStateOf<File?>(null) }
     var processedImages by remember { mutableStateOf<ProcessedImage?>(null) }
@@ -226,29 +210,14 @@ fun WardrobeScreen(onNavigate: (String) -> Unit) {
         }
     }
 
-    // Calculate stats
-    val totalItems = clothingItems.size
-    val favoritesCount = clothingItems.count { it.isFavorite }
-
-    // Filter items by category
-    val filteredItems = remember(selectedCategory, clothingItems) {
-        if (selectedCategory == Category.ALL) {
-            clothingItems
-        } else {
-            clothingItems.filter { it.category == selectedCategory.key }
-        }
-    }
-
-    // Show Camera Screen
-    if (showCameraScreen) {
-        CameraClothingScreen(
-            onBack = {
-                showCameraScreen = false
-            },
-            onImageCaptured = { imageFile ->
+    // UPDATED: Handle captured image path from navigation
+    LaunchedEffect(capturedPhotoPath) {
+        capturedPhotoPath?.let { path ->
+            val imageFile = File(path)
+            if (imageFile.exists()) {
                 capturedImageFile = imageFile
-                showCameraScreen = false
                 isProcessing = true
+                onPhotoProcessed() // Clear the state in navigation
 
                 scope.launch {
                     try {
@@ -288,8 +257,20 @@ fun WardrobeScreen(onNavigate: (String) -> Unit) {
                     }
                 }
             }
-        )
-        return
+        }
+    }
+
+    // Calculate stats
+    val totalItems = clothingItems.size
+    val favoritesCount = clothingItems.count { it.isFavorite }
+
+    // Filter items by category
+    val filteredItems = remember(selectedCategory, clothingItems) {
+        if (selectedCategory == Category.ALL) {
+            clothingItems
+        } else {
+            clothingItems.filter { it.category == selectedCategory.key }
+        }
     }
 
     // Show Processing Indicator
@@ -588,7 +569,8 @@ fun WardrobeScreen(onNavigate: (String) -> Unit) {
                 }
             },
             onTakePhoto = {
-                showCameraScreen = true
+                // Navigate to camera screen using navigation
+                onNavigate("camera/clothing")
                 showBottomSheet = false
             },
             onChooseFromGallery = {
@@ -614,11 +596,6 @@ fun WardrobeScreen(onNavigate: (String) -> Unit) {
     }
 }
 
-// Keep all your existing composable functions below:
-// WardrobeHeader, StatsCard, StatItem, CategoryFilter, ItemsGrid,
-// ClothingCard, ClothingImageSection, ClothingDetailsSection,
-// EmptyState, getRelativeTime...
-
 @Composable
 private fun WardrobeHeader(onNavigate: (String) -> Unit) {
     Box(
@@ -632,21 +609,53 @@ private fun WardrobeHeader(onNavigate: (String) -> Unit) {
             .padding(24.dp)
     ) {
         Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { onNavigate("home") }) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Color.White
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { onNavigate("home") }) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Wardrobe",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Wardrobe",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+
+                // Try-On Button
+                Button(
+                    onClick = {
+                        android.util.Log.d("Wardrobe", "Try-On button clicked!")
+                        onNavigate("virtual_tryon")
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White,
+                        contentColor = Color(0xFF10B981)
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Try On",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Try On",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -986,7 +995,6 @@ private fun EmptyState(category: String) {
     }
 }
 
-// Helper function to format relative time
 private fun getRelativeTime(timestamp: Long): String {
     val now = System.currentTimeMillis()
     val diff = now - timestamp

@@ -211,8 +211,8 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedButton(
                 onClick = {
-                    email = "demo@fitmatch.com"
-                    password = "demo123"
+                    email = "arman@gmail.com"//"demo@fitmatch.com"
+                    password = "123456"//"demo123"
                 },
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF00C39A)),

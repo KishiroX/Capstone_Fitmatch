@@ -1,3 +1,4 @@
+
 package com.example.capstone
 
 import android.os.Bundle
@@ -9,22 +10,21 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.capstone.ui.screen.WardrobeScreen
-import com.example.capstone.ui.screen.CameraClothingScreen
-import com.example.capstone.ui.screen.HistoryScreen
 import com.example.capstone.ui.screens.*
 import com.example.capstone.ui.theme.AssistanceScreen
 import com.example.capstone.ui.screens.TryOnScreen
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 
-// Joshua's additions
+//bagoo
 import com.example.capstone.ui.screens.MissionsScreen
 import com.example.capstone.ui.screens.AdScreen
 import com.example.capstone.ui.screens.LevelUpDialog
 import com.example.capstone.ui.screens.User
 import com.example.capstone.ui.screens.ProfileScreen
 
-class MainActivity : ComponentActivity() {
+class MainActivity : Componen
+tActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -38,9 +38,6 @@ class MainActivity : ComponentActivity() {
 fun AppNavHost(navController: NavHostController = rememberNavController()) {
     val auth = FirebaseAuth.getInstance()
     val db = FirebaseFirestore.getInstance()
-
-    // State to hold captured photo path
-    var capturedPhotoPath by remember { mutableStateOf<String?>(null) }
 
     NavHost(navController = navController, startDestination = "onboarding") {
 
@@ -123,21 +120,6 @@ fun AppNavHost(navController: NavHostController = rememberNavController()) {
             )
         }
 
-        // -------------------- CAMERA FOR CLOTHING --------------------
-        composable("camera/clothing") {
-            CameraClothingScreen(
-                onBack = {
-                    navController.popBackStack()
-                },
-                onImageCaptured = { file ->
-                    capturedPhotoPath = file.absolutePath
-                    navController.navigate("wardrobe") {
-                        popUpTo("camera/clothing") { inclusive = true }
-                    }
-                }
-            )
-        }
-
         // -------------------- WARDROBE --------------------
         composable("wardrobe") {
             WardrobeScreen(
@@ -146,28 +128,8 @@ fun AppNavHost(navController: NavHostController = rememberNavController()) {
                         "home" -> navController.navigate("home") {
                             popUpTo("wardrobe") { inclusive = true }
                         }
-                        "camera/clothing" -> navController.navigate("camera/clothing")
-                        "virtual_tryon", "tryon" -> navController.navigate("tryon")
                         "buildFit" -> navController.navigate("buildFit")
                         "addItems" -> navController.navigate("addItems")
-                    }
-                },
-                capturedPhotoPath = capturedPhotoPath,
-                onPhotoProcessed = {
-                    capturedPhotoPath = null // Clear after processing
-                }
-            )
-        }
-
-        // -------------------- BUILD A FIT --------------------
-        composable("buildFit") {
-            BuildAFitScreen(
-                onNavigate = { destination ->
-                    when (destination) {
-                        "home" -> navController.navigate("home") {
-                            popUpTo("buildFit") { inclusive = true }
-                        }
-                        else -> navController.navigate(destination)
                     }
                 }
             )
@@ -225,40 +187,30 @@ fun AppNavHost(navController: NavHostController = rememberNavController()) {
                         "home" -> navController.navigate("home") {
                             popUpTo("profile") { inclusive = true }
                         }
+
                         else -> navController.navigate(destination)
                     }
                 },
                 user = user,
                 bodyMeasurements = bodyMeasurements,
                 bodyRatios = bodyRatios
+
+
             )
         }
 
-        // -------------------- HISTORY --------------------
-        composable("history") {
-            HistoryScreen(
-                onNavigate = { destination ->
-                    when (destination) {
-                        "home" -> navController.navigate("home") {
-                            popUpTo("history") { inclusive = true }
-                        }
-                        "buildFit" -> navController.navigate("buildFit")
-                        "assistant" -> navController.navigate("assistant")
-                        else -> navController.navigate(destination)
-                    }
-                }
-            )
-        }
+            // -------------------- MISSIONS --------------------
+            composable("missions") {
+                MissionsScreen(navController = navController)
+            }
+            // -------------------- AD SCREEN --------------------
+            composable("ad/{duration}") { backStackEntry ->
+                val duration = backStackEntry.arguments?.getString("duration")?.toIntOrNull() ?: 30
+                AdScreen(navController = navController, duration = duration)
+            }
 
-        // -------------------- MISSIONS (Joshua's addition) --------------------
-        composable("missions") {
-            MissionsScreen(navController = navController)
-        }
 
-        // -------------------- AD SCREEN (Joshua's addition) --------------------
-        composable("ad/{duration}") { backStackEntry ->
-            val duration = backStackEntry.arguments?.getString("duration")?.toIntOrNull() ?: 30
-            AdScreen(navController = navController, duration = duration)
         }
     }
-}
+
+

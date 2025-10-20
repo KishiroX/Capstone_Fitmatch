@@ -40,12 +40,12 @@ fun HomeScreen(navController: NavController) {
     var maxStorage by remember { mutableStateOf(20) }
     var currentStorage by remember { mutableStateOf(0) }
 
-    // Real-time listener for user data updates
+    // FIX: Add listener for real-time updates
     LaunchedEffect(userId) {
         if (userId != null) {
             val db = FirebaseFirestore.getInstance()
 
-            // Real-time listener for user document
+            // Use real-time listener instead of one-time get()
             db.collection("users").document(userId)
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) {
@@ -102,7 +102,7 @@ fun HomeScreenContent(
     maxStorage: Int = 20,
     currentStorage: Int = 0
 ) {
-    // Calculate XP progress using MissionManager formula
+    // FIX: Use MissionManager to calculate XP correctly
     val xpForNextLevel = when {
         userLevel <= 10 -> 100
         userLevel <= 20 -> 200
@@ -115,8 +115,8 @@ fun HomeScreenContent(
             .fillMaxSize()
             .background(Color(0xFFF9FAFB))
     ) {
-        // Header with Level Badge and XP Progress
         item {
+            // Header with Level Badge
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -212,7 +212,7 @@ fun HomeScreenContent(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Stats Row with Streak
+                    // Stats Row
                     Row(
                         horizontalArrangement = Arrangement.SpaceAround,
                         modifier = Modifier.fillMaxWidth()
@@ -293,7 +293,7 @@ fun HomeScreenContent(
                     ) { onNavigate("wardrobe") }
                 }
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Row(
                     Modifier.fillMaxWidth(),
@@ -320,6 +320,7 @@ fun HomeScreenContent(
             }
         }
 
+        // Rest of the content remains the same...
         // Today's Suggestion Card
         item {
             Card(
@@ -342,28 +343,28 @@ fun HomeScreenContent(
                         Box(modifier = Modifier.size(28.dp)) {}
                     }
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("🌤️", fontSize = 32.sp)
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text("Perfect for today's weather", fontWeight = FontWeight.Medium)
                             Text("22°C, Partly cloudy", color = Color.Gray)
                         }
                     }
 
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
                         Text("👕", fontSize = 28.sp)
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text("👖", fontSize = 28.sp)
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text("👟", fontSize = 28.sp)
                     }
 
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Button(
                         onClick = { onNavigate("assistant") },
@@ -398,7 +399,7 @@ fun HomeScreenContent(
                         }
                     }
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     sampleOutfits.forEach { outfit ->
                         Row(
@@ -417,7 +418,7 @@ fun HomeScreenContent(
                                         Text(it, fontSize = 20.sp, modifier = Modifier.padding(end = 4.dp))
                                     }
                                 }
-                                Spacer(Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
                                 Column {
                                     Text(outfit.first, fontWeight = FontWeight.Medium)
                                     Text(outfit.third, fontSize = 12.sp, color = Color.Gray)
@@ -441,24 +442,19 @@ fun HomeScreenContent(
             ) {
                 Column(Modifier.padding(16.dp)) {
                     Text("Your Style Journey", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
                             Text("Level $userLevel", fontWeight = FontWeight.Medium)
                             Text("Keep building your style!", color = Color.Gray, fontSize = 12.sp)
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                "${(xpProgress * 100).toInt()}%",
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF10B981)
-                            )
+                            Text("${(xpProgress * 100).toInt()}%", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
                             Text("to Level ${userLevel + 1}", color = Color(0xFF059669), fontSize = 12.sp)
                         }
                     }
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     LinearProgressIndicator(
                         progress = xpProgress,
@@ -508,10 +504,10 @@ fun ActionCard(
                 ) {
                     icon()
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             }
             Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            Spacer(Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(subtitle, color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
         }
     }

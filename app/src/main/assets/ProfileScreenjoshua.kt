@@ -1,6 +1,8 @@
+
+
 package com.example.capstone.ui.screens
 
-import androidx.compose.foundation.Image
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -17,26 +19,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.rememberAsyncImagePainter
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.example.capstone.missions.MissionManager
 import com.example.capstone.missions.UserProgress
-
-data class User(
-    val name: String = "User Name",
-    val email: String = "user@example.com",
-    val height: String = "N/A",
-    val weight: String = "N/A",
-    val age: String = "N/A",
-    val gender: String = "Not Set",
-    val bodyType: String = "Rectangle",
-    val bodyScanUrl: String? = null
-)
 
 data class BodyTypeInfo(
     val description: String,
@@ -60,15 +49,15 @@ fun ProfileScreen(
     var measurements by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var ratios by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
 
-    // Real-time listener for user data updates
+    // FIX: Use snapshot listener for real-time updates
     LaunchedEffect(uid) {
         if (uid != null) {
             val userDoc = db.collection("users").document(uid)
 
-            // Real-time snapshot listener
+            // Real-time listener
             userDoc.addSnapshotListener { userSnap, error ->
                 if (error != null) {
-                    android.util.Log.e("ProfileScreen", "Error listening to user data", error)
+                    android.util.Log.e("ProfileScreen", "Error listening", error)
                     isLoading = false
                     return@addSnapshotListener
                 }
@@ -81,12 +70,11 @@ fun ProfileScreen(
                         height = userData["height"]?.toString() ?: "N/A",
                         weight = userData["weight"]?.toString() ?: "N/A",
                         age = userData["age"]?.toString() ?: "N/A",
-                        gender = userData["gender"]?.toString() ?: "Not Set",
-                        bodyScanUrl = userData["bodyScanUrl"]?.toString()
+                        gender = userData["gender"]?.toString() ?: "Not Set"
                     )
                 }
 
-                // Load bodyComposition if available
+                // Load bodyComposition
                 userDoc.collection("bodyComposition").document("latest")
                     .get()
                     .addOnSuccessListener { doc ->
@@ -98,7 +86,7 @@ fun ProfileScreen(
                             data.forEach { (key, value) ->
                                 if (key.contains("Ratio", ignoreCase = true)) {
                                     tempRatios[key] = value.toString()
-                                } else if (key != "timestamp" && key != "bodyScanUrl") {
+                                } else if (key != "timestamp") {
                                     tempMeasurements[key] = value.toString()
                                 }
                             }
@@ -149,39 +137,12 @@ fun ProfileContent(
                 "Try wrap dresses and peplum tops"
             ),
             emoji = "👤"
-        ),
-        "Hourglass" to BodyTypeInfo(
-            description = "Balanced bust and hips with a defined waist",
-            tips = listOf(
-                "Emphasize your waist with fitted styles",
-                "Wrap dresses work perfectly",
-                "Balance top and bottom proportions"
-            ),
-            emoji = "⌛"
-        ),
-        "Triangle" to BodyTypeInfo(
-            description = "Hips wider than shoulders",
-            tips = listOf(
-                "Add volume to upper body",
-                "Balance with A-line skirts",
-                "Use statement tops"
-            ),
-            emoji = "🔺"
-        ),
-        "Inverted Triangle" to BodyTypeInfo(
-            description = "Shoulders wider than hips",
-            tips = listOf(
-                "Balance with fuller bottoms",
-                "V-necks elongate torso",
-                "Add volume to lower body"
-            ),
-            emoji = "🔻"
         )
     )
 
     val info = bodyTypeInfo[user.bodyType] ?: bodyTypeInfo["Rectangle"]!!
 
-    // Load user progress for level/mission display
+    // Load user progress for level display
     val userId = FirebaseAuth.getInstance().currentUser?.uid
     val db = FirebaseFirestore.getInstance()
     val missionManager = remember {
@@ -189,13 +150,13 @@ fun ProfileContent(
     }
     var userProgress by remember { mutableStateOf(UserProgress()) }
 
-    // Real-time listener for user progress
+    // FIX: Use snapshot listener here too
     LaunchedEffect(userId) {
         if (userId != null && missionManager != null) {
             db.collection("users").document(userId)
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) {
-                        android.util.Log.e("ProfileContent", "Error listening to progress", error)
+                        android.util.Log.e("ProfileContent", "Error listening", error)
                         return@addSnapshotListener
                     }
 
@@ -247,9 +208,9 @@ fun ProfileContent(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        // Replace the entire "User Info Card WITH Level & Progress at TOP" section
+// in ProfileContent (around lines 140-230)
 
-        // User Info Card with Level & Progress
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -316,7 +277,7 @@ fun ProfileContent(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Digital Closet Card
+                // Digital Closet Card - NEW DESIGN MATCHING RIGHT IMAGE
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -365,12 +326,12 @@ fun ProfileContent(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // View Missions Button
+                        // Prominent View Missions Button
                         Button(
                             onClick = { onNavigate("missions") },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(
-                                backgroundColor = Color(0xFF10B981)
+                                backgroundColor  = Color(0xFF10B981)
                             ),
                             shape = RoundedCornerShape(12.dp),
                             contentPadding = PaddingValues(vertical = 14.dp)
@@ -394,7 +355,7 @@ fun ProfileContent(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // XP Progress Bar
+                // XP Progress Bar (below Digital Closet)
                 if (missionManager != null) {
                     val xpNeeded = missionManager.getXPNeededForLevel(userProgress.level)
                     val progress = if (userProgress.level >= 20) 1f
@@ -452,7 +413,7 @@ fun ProfileContent(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Stats Row
+                // Stats Row (Outfits, Items, Challenge)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
@@ -466,7 +427,7 @@ fun ProfileContent(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Body Scan Display Card
+        // Body Info Card
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -480,7 +441,7 @@ fun ProfileContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Body Scan", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Body Analysis", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     OutlinedButton(onClick = { onNavigate("scan") }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Rescan", modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
@@ -490,57 +451,6 @@ fun ProfileContent(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Display body scan image or placeholder
-                if (user.bodyScanUrl != null) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(300.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        elevation = 4.dp
-                    ) {
-                        Image(
-                            painter = rememberAsyncImagePainter(user.bodyScanUrl),
-                            contentDescription = "Your Body Scan",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit
-                        )
-                    }
-                } else {
-                    // Placeholder when no scan available
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFFD1FAE5), shape = RoundedCornerShape(12.dp))
-                            .padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "No Scan",
-                            modifier = Modifier.size(64.dp),
-                            tint = Color(0xFF065F46)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            "No Body Scan Yet",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF065F46)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            "Complete your body scan to see your personalized mannequin here",
-                            fontSize = 14.sp,
-                            color = Color(0xFF065F46),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Body Type Info
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -582,6 +492,8 @@ fun ProfileContent(
         BodyMeasurementsSection(bodyMeasurements, useInches)
         Spacer(modifier = Modifier.height(12.dp))
         BodyRatiosSection(bodyRatios, showPercentages)
+
+        // FIX: Removed duplicate leveling section from bottom - it's now at the top!
     }
 }
 

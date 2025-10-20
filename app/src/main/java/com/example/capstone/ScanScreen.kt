@@ -2,6 +2,7 @@ package com.example.capstone.ui.screens
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -38,6 +39,9 @@ import com.example.capstone.CameraPreviewWithCapture
 import java.io.InputStream
 import java.nio.ByteBuffer
 import com.example.capstone.R
+import com.cloudinary.android.MediaManager
+import com.cloudinary.android.callback.ErrorInfo
+import com.cloudinary.android.callback.UploadCallback
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,13 +49,13 @@ fun ScanScreen(navController: NavController) {
     val imageCapture = remember { ImageCapture.Builder().build() }
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var isAligned by remember { mutableStateOf(false) }
-
+    var isUploading by remember { mutableStateOf(false) }
+    var uploadError by remember { mutableStateOf<String?>(null) }
 
     var useFrontCamera by remember { mutableStateOf(false) }
 
     val auth = FirebaseAuth.getInstance()
     val db = FirebaseFirestore.getInstance()
-
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -62,27 +66,24 @@ fun ScanScreen(navController: NavController) {
             val bitmap = BitmapFactory.decodeStream(inputStream)
             inputStream?.close()
             bitmap?.let { selected ->
-                val userId = auth.currentUser?.uid
-                if (userId != null) {
-                    val scanId = UUID.randomUUID().toString()
-                    val scanData = mapOf(
-                        "scanId" to scanId,
-                        "timestamp" to System.currentTimeMillis(),
-                        "source" to "gallery"
-                    )
-                    db.collection("users")
-                        .document(userId)
-                        .collection("scans")
-                        .document(scanId)
-                        .set(scanData)
-                        .addOnSuccessListener { Log.d("ScanScreen", "Scan saved successfully") }
-                        .addOnFailureListener { e -> Log.e("ScanScreen", "Error saving scan", e) }
-                }
-
-                navController.currentBackStackEntry?.savedStateHandle?.set("capturedBitmap", selected)
-                navController.navigate("result")
+                capturedBitmap = selected
+                Log.d("ScanScreen", "Image loaded from gallery")
             }
         }
+    }
+
+    // Show error dialog if upload fails
+    uploadError?.let { error ->
+        AlertDialog(
+            onDismissRequest = { uploadError = null },
+            title = { Text("Upload Failed") },
+            text = { Text(error) },
+            confirmButton = {
+                TextButton(onClick = { uploadError = null }) {
+                    Text("OK")
+                }
+            }
+        )
     }
 
     Column(
@@ -109,7 +110,6 @@ fun ScanScreen(navController: NavController) {
             contentAlignment = Alignment.Center
         ) {
             if (capturedBitmap == null) {
-
                 Box(modifier = Modifier.fillMaxSize()) {
                     CameraPreviewWithCapture(
                         imageCapture = imageCapture,
@@ -117,7 +117,6 @@ fun ScanScreen(navController: NavController) {
                         onPoseDetected = { aligned -> isAligned = aligned },
                         useFrontCamera = useFrontCamera
                     )
-
 
                     IconButton(
                         onClick = { useFrontCamera = !useFrontCamera },
@@ -134,7 +133,6 @@ fun ScanScreen(navController: NavController) {
                             tint = Color(0xFF00C8A0)
                         )
                     }
-
 
                     Image(
                         painter = painterResource(id = R.drawable.body_outline),
@@ -163,12 +161,27 @@ fun ScanScreen(navController: NavController) {
                     }
                 }
             } else {
-
                 Image(
                     bitmap = capturedBitmap!!.asImageBitmap(),
                     contentDescription = "Captured Preview",
                     modifier = Modifier.fillMaxSize()
                 )
+            }
+
+            // Loading overlay
+            if (isUploading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.7f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = Color.White)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Uploading...", color = Color.White, fontSize = 16.sp)
+                    }
+                }
             }
         }
 
@@ -176,7 +189,6 @@ fun ScanScreen(navController: NavController) {
 
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             if (capturedBitmap == null) {
-
                 Button(
                     onClick = {
                         imageCapture.takePicture(
@@ -185,6 +197,7 @@ fun ScanScreen(navController: NavController) {
                                 override fun onCaptureSuccess(image: ImageProxy) {
                                     val bitmap = imageProxyToBitmap(image)
                                     capturedBitmap = bitmap
+                                    Log.d("ScanScreen", "Photo captured successfully")
                                     image.close()
                                 }
 
@@ -205,7 +218,6 @@ fun ScanScreen(navController: NavController) {
                     Text("Capture", color = Color(0xFF00C8A0))
                 }
 
-
                 Button(
                     onClick = { galleryLauncher.launch("image/*") },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White),
@@ -220,32 +232,58 @@ fun ScanScreen(navController: NavController) {
                     Text("Pick from Gallery", color = Color(0xFF00C8A0))
                 }
             } else {
-
                 Button(
                     onClick = {
                         val userId = auth.currentUser?.uid
-                        if (userId != null && capturedBitmap != null) {
-                            uploadScanToFirebase(capturedBitmap!!, userId) { downloadUrl ->
-                                if (downloadUrl != null) {
+                        val bitmap = capturedBitmap
 
-                                    val scanId = UUID.randomUUID().toString()
+                        Log.d("ScanScreen", "Confirm clicked - userId: $userId, bitmap: ${bitmap != null}")
+
+                        if (userId != null && bitmap != null) {
+                            isUploading = true
+                            Log.d("ScanScreen", "Starting upload for user: $userId")
+
+                            uploadScanToCloudinary(bitmap, userId) { downloadUrl ->
+                                if (downloadUrl != null) {
+                                    Log.d("ScanScreen", "✅ Upload successful: $downloadUrl")
+
                                     val scanData = mapOf(
-                                        "scanId" to scanId,
+                                        "scanId" to "bodyScan",
                                         "timestamp" to System.currentTimeMillis(),
                                         "imageUrl" to downloadUrl
                                     )
+
                                     db.collection("users")
                                         .document(userId)
-                                        .collection("wardrobe")
-                                        .document(scanId)
+                                        .collection("scans")
+                                        .document("bodyScan")
                                         .set(scanData)
+                                        .addOnSuccessListener {
+                                            Log.d("ScanScreen", "✅ Saved to Firestore")
+                                            isUploading = false
 
-
-                                    navController.navigate("wardrobe")
+                                            // Navigate to result and pass the URL as argument
+                                            navController.navigate("result?imageUrl=$downloadUrl") {
+                                                popUpTo("scan") { inclusive = false }
+                                            }
+                                        }
+                                        .addOnFailureListener { e ->
+                                            Log.e("ScanScreen", "❌ Firestore error: ${e.message}")
+                                            isUploading = false
+                                            uploadError = "Failed to save data: ${e.message}"
+                                        }
+                                } else {
+                                    Log.e("ScanScreen", "❌ Upload failed - no URL")
+                                    isUploading = false
+                                    uploadError = "Failed to upload image. Please try again."
                                 }
                             }
+                        } else {
+                            Log.e("ScanScreen", "❌ Missing userId or bitmap")
+                            uploadError = if (userId == null) "Please log in first" else "No image captured"
                         }
                     },
+                    enabled = !isUploading,
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier
@@ -257,9 +295,12 @@ fun ScanScreen(navController: NavController) {
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-
                 Button(
-                    onClick = { capturedBitmap = null },
+                    onClick = {
+                        capturedBitmap = null
+                        Log.d("ScanScreen", "Photo cleared for retake")
+                    },
+                    enabled = !isUploading,
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier
@@ -275,32 +316,76 @@ fun ScanScreen(navController: NavController) {
     }
 }
 
-
 fun imageProxyToBitmap(image: ImageProxy): Bitmap {
-    val planeProxy = image.planes.firstOrNull() ?: return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+    val planeProxy = image.planes.firstOrNull()
+        ?: return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+
     val buffer: ByteBuffer = planeProxy.buffer
     val bytes = ByteArray(buffer.remaining())
     buffer.get(bytes)
-    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+
+    // Decode bitmap
+    var bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+
+    // Fix rotation issue
+    val rotationDegrees = image.imageInfo.rotationDegrees
+    if (rotationDegrees != 0) {
+        val matrix = Matrix()
+        matrix.postRotate(rotationDegrees.toFloat())
+        bitmap = Bitmap.createBitmap(
+            bitmap,
+            0,
+            0,
+            bitmap.width,
+            bitmap.height,
+            matrix,
+            true
+        )
+    }
+
+    return bitmap
 }
 
+fun uploadScanToCloudinary(bitmap: Bitmap, userId: String, onComplete: (String?) -> Unit) {
+    try {
+        val baos = java.io.ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos)
+        val data = baos.toByteArray()
 
-fun uploadScanToFirebase(bitmap: Bitmap, userId: String, onComplete: (String?) -> Unit) {
-    val storageRef = com.google.firebase.storage.FirebaseStorage.getInstance().reference
-    val scanId = UUID.randomUUID().toString()
-    val scanRef = storageRef.child("users/$userId/scans/$scanId.jpg")
+        Log.d("Cloudinary", "Image size: ${data.size / 1024}KB")
 
+        MediaManager.get().upload(data)
+            .option("folder", "body_scans")
+            .option("public_id", "user_$userId")
+            .option("overwrite", true)
+            .callback(object : UploadCallback {
+                override fun onStart(requestId: String) {
+                    Log.d("Cloudinary", "Upload started: $requestId")
+                }
 
-    val baos = java.io.ByteArrayOutputStream()
-    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, baos)
-    val data = baos.toByteArray()
+                override fun onProgress(requestId: String, bytes: Long, totalBytes: Long) {
+                    val progress = (bytes.toDouble() / totalBytes.toDouble() * 100).toInt()
+                    Log.d("Cloudinary", "Progress: $progress%")
+                }
 
-    val uploadTask = scanRef.putBytes(data)
-    uploadTask.addOnSuccessListener {
-        scanRef.downloadUrl.addOnSuccessListener { uri ->
-            onComplete(uri.toString())
-        }
-    }.addOnFailureListener {
+                override fun onSuccess(requestId: String, resultData: Map<*, *>) {
+                    val url = resultData["secure_url"] as? String
+                    Log.d("Cloudinary", "✅ Success: $url")
+                    onComplete(url)
+                }
+
+                override fun onError(requestId: String, error: ErrorInfo) {
+                    Log.e("Cloudinary", "❌ Error: ${error.description}")
+                    onComplete(null)
+                }
+
+                override fun onReschedule(requestId: String, error: ErrorInfo) {
+                    Log.w("Cloudinary", "⚠️ Rescheduled: ${error.description}")
+                }
+            })
+            .dispatch()
+    } catch (e: Exception) {
+        Log.e("Cloudinary", "❌ Exception: ${e.message}", e)
         onComplete(null)
     }
 }
