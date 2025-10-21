@@ -1,4 +1,3 @@
-
 package com.example.capstone.ui.screens
 
 import androidx.compose.foundation.background
@@ -35,15 +34,52 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
+
+    // Validation states
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+    var loginError by remember { mutableStateOf<String?>(null) }
+
     val scope = rememberCoroutineScope()
+
+    // Email validation function
+    fun validateEmail(email: String): String? {
+        return when {
+            email.isEmpty() -> "Email is required"
+            !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches() -> "Invalid email format"
+            else -> null
+        }
+    }
+
+    // Password validation function
+    fun validatePassword(password: String): String? {
+        return when {
+            password.isEmpty() -> "Password is required"
+            password.length < 6 -> "Password must be at least 6 characters"
+            else -> null
+        }
+    }
+
+    // Show error dialog
+    loginError?.let { error ->
+        AlertDialog(
+            onDismissRequest = { loginError = null },
+            title = { Text("Login Failed") },
+            text = { Text(error) },
+            confirmButton = {
+                TextButton(onClick = { loginError = null }) {
+                    Text("OK", color = Color(0xFF00C39A))
+                }
+            },
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
     ) {
-
-
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -70,7 +106,6 @@ fun LoginScreen(
             }
         }
 
-
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -81,12 +116,16 @@ fun LoginScreen(
                 .padding(20.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-
+                // Email Field
                 Column {
                     Text("Email Address", fontSize = 14.sp, color = Color(0xFF37474F))
                     OutlinedTextField(
                         value = email,
-                        onValueChange = { email = it },
+                        onValueChange = {
+                            email = it.trim()
+                            emailError = null
+                            loginError = null
+                        },
                         placeholder = { Text("Enter your email") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -94,18 +133,37 @@ fun LoginScreen(
                             Icon(
                                 imageVector = Icons.Filled.Email,
                                 contentDescription = "Email",
-                                tint = Color.Gray
+                                tint = if (emailError != null) Color(0xFFEF4444) else Color.Gray
                             )
-                        }
+                        },
+                        isError = emailError != null,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF00C39A),
+                            unfocusedBorderColor = Color.LightGray,
+                            errorBorderColor = Color(0xFFEF4444)
+                        ),
+                        singleLine = true
                     )
+                    if (emailError != null) {
+                        Text(
+                            text = emailError!!,
+                            color = Color(0xFFEF4444),
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                        )
+                    }
                 }
 
-
+                // Password Field
                 Column {
                     Text("Password", fontSize = 14.sp, color = Color(0xFF37474F))
                     OutlinedTextField(
                         value = password,
-                        onValueChange = { password = it },
+                        onValueChange = {
+                            password = it
+                            passwordError = null
+                            loginError = null
+                        },
                         placeholder = { Text("Enter your password") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -114,7 +172,7 @@ fun LoginScreen(
                             Icon(
                                 imageVector = Icons.Filled.Lock,
                                 contentDescription = "Password",
-                                tint = Color.Gray
+                                tint = if (passwordError != null) Color(0xFFEF4444) else Color.Gray
                             )
                         },
                         trailingIcon = {
@@ -125,11 +183,26 @@ fun LoginScreen(
                                     tint = Color.Gray
                                 )
                             }
-                        }
+                        },
+                        isError = passwordError != null,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF00C39A),
+                            unfocusedBorderColor = Color.LightGray,
+                            errorBorderColor = Color(0xFFEF4444)
+                        ),
+                        singleLine = true
                     )
+                    if (passwordError != null) {
+                        Text(
+                            text = passwordError!!,
+                            color = Color(0xFFEF4444),
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                        )
+                    }
                 }
 
-
+                // Forgot Password
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
@@ -142,29 +215,59 @@ fun LoginScreen(
                     )
                 }
 
-
+                // Sign In Button
                 Button(
                     onClick = {
+                        // Validate fields
+                        val emailValidation = validateEmail(email)
+                        val passwordValidation = validatePassword(password)
+
+                        if (emailValidation != null) {
+                            emailError = emailValidation
+                            return@Button
+                        }
+
+                        if (passwordValidation != null) {
+                            passwordError = passwordValidation
+                            return@Button
+                        }
+
+                        // Proceed with login
                         loading = true
                         val auth = FirebaseAuth.getInstance()
                         auth.signInWithEmailAndPassword(email, password)
                             .addOnCompleteListener { task ->
                                 loading = false
                                 if (task.isSuccessful) {
-
+                                    android.util.Log.d("LoginScreen", "✅ Login successful")
                                     onLoginClick(email, password)
                                 } else {
+                                    val errorMessage = when (task.exception?.message) {
+                                        "There is no user record corresponding to this identifier. The user may have been deleted." ->
+                                            "No account found with this email"
+                                        "The password is invalid or the user does not have a password." ->
+                                            "Incorrect password"
+                                        "The email address is badly formatted." ->
+                                            "Invalid email format"
+                                        "Access to this account has been temporarily disabled due to many failed login attempts. You can immediately restore it by resetting your password or you can try again later." ->
+                                            "Too many failed attempts. Try again later"
+                                        else -> task.exception?.message ?: "Login failed. Please try again"
+                                    }
 
-                                    println("Login failed: ${task.exception?.message}")
+                                    android.util.Log.e("LoginScreen", "❌ Login failed: $errorMessage")
+                                    loginError = errorMessage
                                 }
                             }
                     },
-                    enabled = email.isNotEmpty() && password.isNotEmpty() && !loading,
+                    enabled = !loading,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
                     shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00C39A))
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF00C39A),
+                        disabledContainerColor = Color(0xFF00C39A).copy(alpha = 0.5f)
+                    )
                 ) {
                     if (loading) {
                         CircularProgressIndicator(
@@ -176,13 +279,12 @@ fun LoginScreen(
                         Text("Sign In", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-
+        // Sign Up Link
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center
@@ -197,8 +299,9 @@ fun LoginScreen(
             )
         }
 
-
         Spacer(modifier = Modifier.height(24.dp))
+
+        // Demo Login
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -211,8 +314,11 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedButton(
                 onClick = {
-                    email = "arman@gmail.com"//"demo@fitmatch.com"
-                    password = "123456"//"demo123"
+                    email = "arman@gmail.com"
+                    password = "123456"
+                    emailError = null
+                    passwordError = null
+                    loginError = null
                 },
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF00C39A)),

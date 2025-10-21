@@ -241,9 +241,7 @@ fun ProfileContent(
                     }
                     Text("Profile", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
                 }
-                IconButton(onClick = { /* Settings */ }) {
-                    Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
-                }
+
             }
         }
 

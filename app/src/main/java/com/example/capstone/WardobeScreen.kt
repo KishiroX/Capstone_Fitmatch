@@ -632,30 +632,7 @@ private fun WardrobeHeader(onNavigate: (String) -> Unit) {
                 }
 
                 // Try-On Button
-                Button(
-                    onClick = {
-                        android.util.Log.d("Wardrobe", "Try-On button clicked!")
-                        onNavigate("virtual_tryon")
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White,
-                        contentColor = Color(0xFF10B981)
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Try On",
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Try On",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+
             }
 
             Spacer(modifier = Modifier.height(24.dp))

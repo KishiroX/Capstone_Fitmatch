@@ -262,8 +262,11 @@ fun ScanScreen(navController: NavController) {
                                             Log.d("ScanScreen", "✅ Saved to Firestore")
                                             isUploading = false
 
-                                            // Navigate to result and pass the URL as argument
-                                            navController.navigate("result?imageUrl=$downloadUrl") {
+                                            // FIXED: Pass bitmap and URL via savedStateHandle
+                                            navController.currentBackStackEntry?.savedStateHandle?.set("capturedBitmap", bitmap)
+                                            navController.currentBackStackEntry?.savedStateHandle?.set("bodyScanUrl", downloadUrl)
+
+                                            navController.navigate("result") {
                                                 popUpTo("scan") { inclusive = false }
                                             }
                                         }

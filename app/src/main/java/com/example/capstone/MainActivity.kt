@@ -10,12 +10,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.capstone.ui.screen.WardrobeScreen
 import com.example.capstone.ui.screen.CameraClothingScreen
-import com.example.capstone.ui.screen.HistoryScreen
+import com.example.capstone.ui.screens.HistoryScreen
 import com.example.capstone.ui.screens.*
 import com.example.capstone.ui.theme.AssistanceScreen
 import com.example.capstone.ui.screens.TryOnScreen
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+
+// Cloudinary
+import com.cloudinary.android.MediaManager
 
 // Joshua's additions
 import com.example.capstone.ui.screens.MissionsScreen
@@ -28,8 +31,26 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Initialize Cloudinary
+        initCloudinary()
+
         setContent {
             AppNavHost()
+        }
+    }
+
+    private fun initCloudinary() {
+        try {
+            val config = hashMapOf(
+                "cloud_name" to "dt4vdr1qy",  // Replace with your cloud name
+                "api_key" to "411389739366478",        // Replace with your API key
+                "api_secret" to "5NlScSbjWrCzumI-M6569bm0NCU"   // Replace with your API secret
+            )
+
+            MediaManager.init(this, config)
+            android.util.Log.d("MainActivity", "✅ Cloudinary initialized successfully")
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "❌ Cloudinary initialization failed", e)
         }
     }
 }
@@ -148,27 +169,12 @@ fun AppNavHost(navController: NavHostController = rememberNavController()) {
                         }
                         "camera/clothing" -> navController.navigate("camera/clothing")
                         "virtual_tryon", "tryon" -> navController.navigate("tryon")
-                        "buildFit" -> navController.navigate("buildFit")
                         "addItems" -> navController.navigate("addItems")
                     }
                 },
                 capturedPhotoPath = capturedPhotoPath,
                 onPhotoProcessed = {
                     capturedPhotoPath = null // Clear after processing
-                }
-            )
-        }
-
-        // -------------------- BUILD A FIT --------------------
-        composable("buildFit") {
-            BuildAFitScreen(
-                onNavigate = { destination ->
-                    when (destination) {
-                        "home" -> navController.navigate("home") {
-                            popUpTo("buildFit") { inclusive = true }
-                        }
-                        else -> navController.navigate(destination)
-                    }
                 }
             )
         }
@@ -242,7 +248,7 @@ fun AppNavHost(navController: NavHostController = rememberNavController()) {
                         "home" -> navController.navigate("home") {
                             popUpTo("history") { inclusive = true }
                         }
-                        "buildFit" -> navController.navigate("buildFit")
+                        "tryon" -> navController.navigate("tryon")
                         "assistant" -> navController.navigate("assistant")
                         else -> navController.navigate(destination)
                     }

@@ -315,67 +315,12 @@ fun HomeScreenContent(
                         color2 = Color(0xFF059669),
                         modifier = Modifier.weight(1f),
                         icon = { Icon(Icons.Default.Add, contentDescription = null, tint = Color.White) }
-                    ) { onNavigate("buildFit") }
+                    ) { onNavigate("tryon") }
                 }
             }
         }
 
-        // Today's Suggestion Card
-        item {
-            Card(
-                modifier = Modifier
-                    .padding(16.dp)
-                    .fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-            ) {
-                Column(Modifier.padding(16.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column {
-                            Text("Today's Suggestion", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                            Text("Perfect for today's weather", color = Color.Gray)
-                        }
-                        Box(modifier = Modifier.size(28.dp)) {}
-                    }
 
-                    Spacer(Modifier.height(12.dp))
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("🌤️", fontSize = 32.sp)
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text("Perfect for today's weather", fontWeight = FontWeight.Medium)
-                            Text("22°C, Partly cloudy", color = Color.Gray)
-                        }
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
-                        Text("👕", fontSize = 28.sp)
-                        Spacer(Modifier.width(8.dp))
-                        Text("👖", fontSize = 28.sp)
-                        Spacer(Modifier.width(8.dp))
-                        Text("👟", fontSize = 28.sp)
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    Button(
-                        onClick = { onNavigate("assistant") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
-                    ) {
-                        Text("Get Full Recommendation", color = Color.White)
-                    }
-                }
-            }
-        }
 
         // Recent Outfits Card
         item {
