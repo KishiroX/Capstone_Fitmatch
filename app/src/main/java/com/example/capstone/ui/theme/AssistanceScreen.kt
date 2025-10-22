@@ -37,7 +37,7 @@ data class AssistantForm(
     val event: String,
     val theme: String,
     val weather: String,
-    val temperature: String
+    val venueCondition: String
 )
 
 // ==================== Assistance Screen ====================
@@ -52,7 +52,7 @@ fun AssistanceScreen(
                 event = "",
                 theme = "",
                 weather = "",
-                temperature = "25"
+                venueCondition = ""
             )
         )
     }
@@ -63,12 +63,28 @@ fun AssistanceScreen(
         "Casual outing", "Work meeting", "Date night", "Party", "Wedding",
         "Gym/Sports", "Beach/Pool", "Shopping", "Concert", "Dinner"
     )
-    val themes = listOf(
-        "Casual", "Professional", "Formal", "Chic", "Sporty",
-        "Bohemian", "Minimalist", "Trendy", "Classic", "Edgy"
+
+    // Smart theme ranking based on event type
+    val eventThemeRankings = mapOf(
+        "Casual outing" to listOf("Casual", "Minimalist", "Trendy", "Bohemian", "Edgy", "Chic", "Sporty", "Classic", "Professional", "Formal"),
+        "Work meeting" to listOf("Professional", "Classic", "Minimalist", "Formal", "Chic", "Casual", "Trendy", "Edgy", "Bohemian", "Sporty"),
+        "Date night" to listOf("Chic", "Trendy", "Edgy", "Classic", "Formal", "Casual", "Minimalist", "Bohemian", "Professional", "Sporty"),
+        "Party" to listOf("Trendy", "Edgy", "Chic", "Bohemian", "Casual", "Classic", "Formal", "Minimalist", "Professional", "Sporty"),
+        "Wedding" to listOf("Formal", "Chic", "Classic", "Trendy", "Professional", "Minimalist", "Casual", "Edgy", "Bohemian", "Sporty"),
+        "Gym/Sports" to listOf("Sporty", "Casual", "Minimalist", "Trendy", "Edgy", "Bohemian", "Chic", "Classic", "Professional", "Formal"),
+        "Beach/Pool" to listOf("Casual", "Bohemian", "Trendy", "Sporty", "Minimalist", "Chic", "Edgy", "Classic", "Professional", "Formal"),
+        "Shopping" to listOf("Casual", "Trendy", "Chic", "Minimalist", "Edgy", "Bohemian", "Classic", "Sporty", "Professional", "Formal"),
+        "Concert" to listOf("Edgy", "Trendy", "Casual", "Bohemian", "Chic", "Sporty", "Classic", "Minimalist", "Professional", "Formal"),
+        "Dinner" to listOf("Chic", "Classic", "Formal", "Trendy", "Casual", "Minimalist", "Professional", "Edgy", "Bohemian", "Sporty")
     )
+
     val weatherConditions = listOf(
         "Sunny", "Cloudy", "Rainy", "Windy", "Humid", "Hot", "Cool", "Stormy"
+    )
+
+    val venueConditions = listOf(
+        "Outdoor - Hot", "Outdoor - Cool", "Indoor - Air Conditioned",
+        "Indoor - Heated", "Indoor - No Climate Control", "Mixed (Indoor/Outdoor)"
     )
 
     val defaultBodyMap = mapOf(
@@ -146,7 +162,8 @@ fun AssistanceScreen(
 
     // ==================== Recommendation Handler ====================
     fun handleGenerateRecommendation() {
-        if (formData.event.isBlank() || formData.theme.isBlank() || formData.weather.isBlank()) return
+        if (formData.event.isBlank() || formData.theme.isBlank() ||
+            formData.weather.isBlank() || formData.venueCondition.isBlank()) return
 
         step = "generating"
         scope.launch {
@@ -156,7 +173,7 @@ fun AssistanceScreen(
                     preferredStyle = formData.theme,
                     theme = formData.theme,
                     currentWeather = formData.weather,
-                    temperature = formData.temperature.toDoubleOrNull() ?: 25.0,
+                    temperature = 25.0,
                     bodyData = bodyAppliedData
                 )
 
@@ -216,8 +233,9 @@ fun AssistanceScreen(
                     formData = formData,
                     onFormChange = { formData = it },
                     eventTypes = eventTypes,
-                    themes = themes,
+                    eventThemeRankings = eventThemeRankings,
                     weatherConditions = weatherConditions,
+                    venueConditions = venueConditions,
                     onGenerate = { handleGenerateRecommendation() },
                     bodyAppliedData = bodyAppliedData
                 )
@@ -240,11 +258,24 @@ fun InputStep(
     formData: AssistantForm,
     onFormChange: (AssistantForm) -> Unit,
     eventTypes: List<String>,
-    themes: List<String>,
+    eventThemeRankings: Map<String, List<String>>,
     weatherConditions: List<String>,
+    venueConditions: List<String>,
     onGenerate: () -> Unit,
     bodyAppliedData: Map<String, String>
 ) {
+    var selectedEvent by remember { mutableStateOf(formData.event) }
+    var selectedTheme by remember { mutableStateOf(formData.theme) }
+    var selectedWeather by remember { mutableStateOf(formData.weather) }
+    var selectedVenue by remember { mutableStateOf(formData.venueCondition) }
+
+    // Get ranked themes based on selected event
+    val rankedThemes = if (selectedEvent.isNotEmpty()) {
+        eventThemeRankings[selectedEvent] ?: eventThemeRankings.values.first()
+    } else {
+        eventThemeRankings.values.first()
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(
             "Style Assistant",
@@ -255,7 +286,6 @@ fun InputStep(
 
         // Event Type Selection
         Text("Event Type", fontWeight = FontWeight.Medium)
-        var selectedEvent by remember { mutableStateOf(formData.event) }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
             for (row in eventTypes.chunked(3)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
@@ -293,24 +323,45 @@ fun InputStep(
             }
         }
 
-        // Theme Selection
-        Text("Preferred Style Theme", fontWeight = FontWeight.Medium)
-        var selectedTheme by remember { mutableStateOf(formData.theme) }
+        // Theme Selection (Smart Ranked)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Preferred Style Theme", fontWeight = FontWeight.Medium)
+            if (selectedEvent.isNotEmpty()) {
+                Text(
+                    "★ Ranked for ${selectedEvent}",
+                    fontSize = 11.sp,
+                    color = Color(0xFF8B5CF6),
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
         Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-            for (row in themes.chunked(3)) {
+            for (row in rankedThemes.chunked(3)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                     row.forEach { theme ->
                         val isSelected = selectedTheme == theme
+                        val rankIndex = rankedThemes.indexOf(theme)
+                        val isBestMatch = rankIndex < 3 && selectedEvent.isNotEmpty()
+
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .background(
-                                    if (isSelected) Color(0xFF8B5CF6) else Color(0xFFF3F4F6),
+                                    if (isSelected) Color(0xFF8B5CF6)
+                                    else if (isBestMatch) Color(0xFFEDE9FE)
+                                    else Color(0xFFF3F4F6),
                                     RoundedCornerShape(50)
                                 )
                                 .border(
                                     1.dp,
-                                    if (isSelected) Color(0xFF8B5CF6) else Color(0xFF9CA3AF),
+                                    if (isSelected) Color(0xFF8B5CF6)
+                                    else if (isBestMatch) Color(0xFFA78BFA)
+                                    else Color(0xFF9CA3AF),
                                     RoundedCornerShape(50)
                                 )
                                 .padding(vertical = 10.dp)
@@ -320,12 +371,27 @@ fun InputStep(
                                 },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = theme,
-                                color = if (isSelected) Color.White else Color.Black,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 12.sp
-                            )
+                            Row(
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (isBestMatch && !isSelected) {
+                                    Text(
+                                        "★",
+                                        color = Color(0xFF8B5CF6),
+                                        fontSize = 10.sp,
+                                        modifier = Modifier.padding(end = 4.dp)
+                                    )
+                                }
+                                Text(
+                                    text = theme,
+                                    color = if (isSelected) Color.White
+                                    else if (isBestMatch) Color(0xFF6D28D9)
+                                    else Color.Black,
+                                    fontWeight = if (isSelected || isBestMatch) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 12.sp
+                                )
+                            }
                         }
                     }
                     repeat(3 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
@@ -335,7 +401,6 @@ fun InputStep(
 
         // Weather Selection
         Text("Current Weather", fontWeight = FontWeight.Medium)
-        var selectedWeather by remember { mutableStateOf(formData.weather) }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
             for (row in weatherConditions.chunked(3)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
@@ -373,11 +438,59 @@ fun InputStep(
             }
         }
 
-        // Temperature Picker
-        ScrollableTemperaturePicker(
-            value = formData.temperature,
-            onValueChange = { onFormChange(formData.copy(temperature = it)) }
+        // Venue Condition Selection
+        Text("Venue Condition", fontWeight = FontWeight.Medium)
+        Text(
+            "Consider where you'll spend most time",
+            fontSize = 12.sp,
+            color = Color(0xFF6B7280),
+            modifier = Modifier.padding(bottom = 4.dp)
         )
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            venueConditions.forEach { venue ->
+                val isSelected = selectedVenue == venue
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            if (isSelected) Color(0xFF8B5CF6) else Color(0xFFF3F4F6),
+                            RoundedCornerShape(12)
+                        )
+                        .border(
+                            1.dp,
+                            if (isSelected) Color(0xFF8B5CF6) else Color(0xFF9CA3AF),
+                            RoundedCornerShape(12)
+                        )
+                        .padding(vertical = 12.dp, horizontal = 16.dp)
+                        .clickable {
+                            selectedVenue = venue
+                            onFormChange(formData.copy(venueCondition = venue))
+                        },
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = venue,
+                            color = if (isSelected) Color.White else Color.Black,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = 14.sp
+                        )
+                        if (isSelected) {
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
         // Body Data
         BodyDataAppliedBox(bodyAppliedData)
@@ -422,58 +535,6 @@ fun BodyDataAppliedBox(data: Map<String, String>) {
     }
 }
 
-// ==================== Temperature Picker ====================
-@Composable
-fun ScrollableTemperaturePicker(
-    value: String,
-    onValueChange: (String) -> Unit,
-    minTemp: Int = 10,
-    maxTemp: Int = 45
-) {
-    var temperature by remember { mutableStateOf(value.toIntOrNull() ?: 25) }
-
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Temperature (°C)", fontWeight = FontWeight.Medium)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .border(1.dp, Color.Gray.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                .background(Color.White, RoundedCornerShape(8.dp)),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 12.dp)
-            ) {
-                Icon(imageVector = Icons.Default.Thermostat, contentDescription = null, tint = Color.Gray)
-                Spacer(Modifier.width(12.dp))
-                Text("$temperature°C", fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    IconButton(onClick = {
-                        if (temperature < maxTemp) {
-                            temperature++
-                            onValueChange(temperature.toString())
-                        }
-                    }, modifier = Modifier.size(18.dp)) {
-                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = null, tint = Color.Gray)
-                    }
-                    IconButton(onClick = {
-                        if (temperature > minTemp) {
-                            temperature--
-                            onValueChange(temperature.toString())
-                        }
-                    }, modifier = Modifier.size(18.dp)) {
-                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = Color.Gray)
-                    }
-                }
-            }
-        }
-    }
-}
-
 // ==================== Generating Step ====================
 @Composable
 fun GeneratingStep() {
@@ -507,8 +568,9 @@ fun ResultsStep(
             style = MaterialTheme.typography.titleLarge
         )
         Text(
-            "Weather: ${formData.weather}, Temperature: ${formData.temperature}°C",
-            color = Color.Gray
+            "Weather: ${formData.weather} | Venue: ${formData.venueCondition}",
+            color = Color.Gray,
+            fontSize = 13.sp
         )
 
         if (onlineRecommendations.isEmpty()) {
@@ -649,7 +711,7 @@ fun ResultsStep(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        "View on ASOS",
+                                        "Tap to view on website",
                                         color = Color(0xFF2563EB),
                                         fontWeight = FontWeight.Medium,
                                         fontSize = 14.sp

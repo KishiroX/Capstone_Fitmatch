@@ -1,6 +1,7 @@
 package com.example.capstone.ui.screen
 
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -17,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -29,6 +31,8 @@ import androidx.compose.ui.unit.times
 import coil.compose.AsyncImage
 import com.example.capstone.utils.ImageProcessorUtil
 import com.example.capstone.utils.ProcessedImage
+import com.example.capstone.missions.MissionManager
+import com.example.capstone.missions.UserProgress
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -89,9 +93,18 @@ fun WardrobeScreen(
     val db = remember { FirebaseFirestore.getInstance() }
     val userId = remember { FirebaseAuth.getInstance().currentUser?.uid }
 
+    // Mission Manager for storage limits
+    val missionManager = remember(userId) {
+        if (userId != null) MissionManager(userId, db) else null
+    }
+
+    // User Progress State
+    var userProgress by remember { mutableStateOf<UserProgress?>(null) }
+    var showUpgradeDialog by remember { mutableStateOf(false) }
+
     val cloudinaryInitialized = remember { mutableStateOf(true) }
 
-    // Function to upload image to Cloudinary (embedded)
+    // Function to upload image to Cloudinary
     suspend fun uploadToCloudinary(file: File, folder: String): String = suspendCancellableCoroutine { continuation ->
         if (!cloudinaryInitialized.value) {
             continuation.resumeWithException(Exception("Cloudinary not initialized"))
@@ -155,25 +168,37 @@ fun WardrobeScreen(
         }
     }
 
-    // Mutable list of clothing items (synced with Firestore)
     var clothingItems by remember { mutableStateOf(listOf<ClothingItem>()) }
     var isLoadingItems by remember { mutableStateOf(true) }
 
-    // Bottom Sheet State
     val sheetState = rememberModalBottomSheetState()
     var showBottomSheet by remember { mutableStateOf(false) }
 
-    // Navigation States for Add Flow
     var showFormScreen by remember { mutableStateOf(false) }
     var capturedImageFile by remember { mutableStateOf<File?>(null) }
     var processedImages by remember { mutableStateOf<ProcessedImage?>(null) }
     var detectedInfo by remember { mutableStateOf<DetectedClothingInfo?>(null) }
     var isProcessing by remember { mutableStateOf(false) }
 
-    // Snackbar
+    // Detail sheet state
+    var selectedItem by remember { mutableStateOf<ClothingItem?>(null) }
+    var showDetailSheet by remember { mutableStateOf(false) }
+
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Load clothing items from Firestore on launch
+    // Load user progress for storage limits
+    LaunchedEffect(userId) {
+        if (userId != null && missionManager != null) {
+            try {
+                userProgress = missionManager.getUserProgress()
+                android.util.Log.d("Wardrobe", "User storage: ${userProgress?.currentStorage}/${userProgress?.maxStorage}")
+            } catch (e: Exception) {
+                android.util.Log.e("Wardrobe", "Failed to load user progress", e)
+            }
+        }
+    }
+
+    // Load clothing items from Firestore
     LaunchedEffect(userId) {
         if (userId != null) {
             try {
@@ -195,6 +220,20 @@ fun WardrobeScreen(
                             }
                         }
                         android.util.Log.d("Wardrobe", "✅ Loaded ${clothingItems.size} items")
+
+                        // Update currentStorage in Firestore
+                        try {
+                            db.collection("users")
+                                .document(userId)
+                                .update("currentStorage", clothingItems.size)
+                                .await()
+
+                            if (missionManager != null) {
+                                userProgress = missionManager.getUserProgress()
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("Wardrobe", "Failed to update storage count", e)
+                        }
                     }
             } catch (e: Exception) {
                 android.util.Log.e("Wardrobe", "❌ Error loading items", e)
@@ -210,14 +249,14 @@ fun WardrobeScreen(
         }
     }
 
-    // UPDATED: Handle captured image path from navigation
+    // Handle captured image path from navigation
     LaunchedEffect(capturedPhotoPath) {
         capturedPhotoPath?.let { path ->
             val imageFile = File(path)
             if (imageFile.exists()) {
                 capturedImageFile = imageFile
                 isProcessing = true
-                onPhotoProcessed() // Clear the state in navigation
+                onPhotoProcessed()
 
                 scope.launch {
                     try {
@@ -260,17 +299,20 @@ fun WardrobeScreen(
         }
     }
 
-    // Calculate stats
     val totalItems = clothingItems.size
     val favoritesCount = clothingItems.count { it.isFavorite }
 
-    // Filter items by category
     val filteredItems = remember(selectedCategory, clothingItems) {
         if (selectedCategory == Category.ALL) {
             clothingItems
         } else {
             clothingItems.filter { it.category == selectedCategory.key }
         }
+    }
+
+    fun canAddItem(): Boolean {
+        val progress = userProgress ?: return false
+        return progress.currentStorage < progress.maxStorage
     }
 
     // Show Processing Indicator
@@ -333,11 +375,17 @@ fun WardrobeScreen(
                             return@launch
                         }
 
+                        if (!canAddItem()) {
+                            snackbarHostState.showSnackbar(
+                                message = "⚠️ Wardrobe is full! Level up to add more items.",
+                                duration = SnackbarDuration.Long
+                            )
+                            showUpgradeDialog = true
+                            return@launch
+                        }
+
                         isProcessing = true
                         android.util.Log.d("Wardrobe", "🚀 Starting save process...")
-
-                        // Upload images to Cloudinary
-                        android.util.Log.d("Wardrobe", "📤 Uploading to Cloudinary...")
 
                         val originalUrl = uploadToCloudinary(
                             processedImages!!.originalFile,
@@ -356,7 +404,6 @@ fun WardrobeScreen(
 
                         android.util.Log.d("Wardrobe", "✅ All images uploaded")
 
-                        // Create clothing item data
                         val itemData = hashMapOf(
                             "name" to formData.name,
                             "category" to formData.category,
@@ -384,7 +431,6 @@ fun WardrobeScreen(
 
                         android.util.Log.d("Wardrobe", "✅ Saved with ID: ${docRef.id}")
 
-                        // Create local item
                         val newItem = ClothingItem(
                             id = docRef.id,
                             name = formData.name,
@@ -403,10 +449,18 @@ fun WardrobeScreen(
                             timestamp = com.google.firebase.Timestamp.now()
                         )
 
-                        // Update local list
                         clothingItems = listOf(newItem) + clothingItems
 
-                        // Cleanup temp files
+                        val newStorageCount = clothingItems.size
+                        db.collection("users")
+                            .document(userId)
+                            .update("currentStorage", newStorageCount)
+                            .await()
+
+                        if (missionManager != null) {
+                            userProgress = missionManager.getUserProgress()
+                        }
+
                         try {
                             processedImages!!.originalFile.delete()
                             processedImages!!.processedFile.delete()
@@ -415,7 +469,6 @@ fun WardrobeScreen(
                             android.util.Log.w("Wardrobe", "Failed to delete temp files", e)
                         }
 
-                        // Reset states
                         showFormScreen = false
                         capturedImageFile = null
                         processedImages = null
@@ -423,7 +476,7 @@ fun WardrobeScreen(
                         isProcessing = false
 
                         snackbarHostState.showSnackbar(
-                            message = "✓ ${formData.name} added successfully!",
+                            message = "✓ ${formData.name} added successfully! (${newStorageCount}/${userProgress?.maxStorage ?: 20})",
                             duration = SnackbarDuration.Short
                         )
 
@@ -455,8 +508,20 @@ fun WardrobeScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showBottomSheet = true },
-                containerColor = Color(0xFF10B981),
+                onClick = {
+                    if (!canAddItem()) {
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                message = "⚠️ Wardrobe is full! Level up to add more items.",
+                                duration = SnackbarDuration.Long
+                            )
+                        }
+                        showUpgradeDialog = true
+                    } else {
+                        showBottomSheet = true
+                    }
+                },
+                containerColor = if (canAddItem()) Color(0xFF10B981) else Color(0xFF9CA3AF),
                 shape = CircleShape,
                 modifier = Modifier.size(56.dp)
             ) {
@@ -476,10 +541,17 @@ fun WardrobeScreen(
                 .padding(padding)
         ) {
             WardrobeHeader(onNavigate)
-            StatsCard(
-                totalItems = totalItems,
-                favoritesCount = favoritesCount
-            )
+
+            userProgress?.let { progress ->
+                StorageStatsCard(
+                    currentStorage = progress.currentStorage,
+                    maxStorage = progress.maxStorage,
+                    userLevel = progress.level,
+                    favoritesCount = favoritesCount,
+                    onUpgradeClick = { onNavigate("missions") }
+                )
+            }
+
             CategoryFilter(selectedCategory) { selectedCategory = it }
 
             if (isLoadingItems) {
@@ -552,10 +624,156 @@ fun WardrobeScreen(
                                 snackbarHostState.showSnackbar("Failed to update")
                             }
                         }
+                    },
+                    onDeleteItem = { item ->
+                        scope.launch {
+                            try {
+                                if (userId == null) return@launch
+
+                                db.collection("users")
+                                    .document(userId)
+                                    .collection("wardrobe")
+                                    .document(item.id)
+                                    .delete()
+                                    .await()
+
+                                clothingItems = clothingItems.filter { it.id != item.id }
+
+                                val newStorageCount = clothingItems.size
+                                db.collection("users")
+                                    .document(userId)
+                                    .update("currentStorage", newStorageCount)
+                                    .await()
+
+                                if (missionManager != null) {
+                                    userProgress = missionManager.getUserProgress()
+                                }
+
+                                snackbarHostState.showSnackbar(
+                                    message = "✓ Item removed",
+                                    duration = SnackbarDuration.Short
+                                )
+                            } catch (e: Exception) {
+                                android.util.Log.e("Wardrobe", "❌ Failed to delete item", e)
+                                snackbarHostState.showSnackbar("Failed to delete")
+                            }
+                        }
+                    },
+                    onViewDetails = { item ->
+                        selectedItem = item
+                        showDetailSheet = true
                     }
                 )
             }
         }
+    }
+
+    // Upgrade Dialog
+    if (showUpgradeDialog) {
+        UpgradeStorageDialog(
+            currentStorage = userProgress?.currentStorage ?: 0,
+            maxStorage = userProgress?.maxStorage ?: 20,
+            currentLevel = userProgress?.level ?: 1,
+            onDismiss = { showUpgradeDialog = false },
+            onGoToMissions = {
+                showUpgradeDialog = false
+                onNavigate("missions")
+            }
+        )
+    }
+
+    // Detail Bottom Sheet
+    if (showDetailSheet && selectedItem != null) {
+        ClothingDetailBottomSheet(
+            item = selectedItem!!,
+            onDismiss = {
+                showDetailSheet = false
+                selectedItem = null
+            },
+            onEdit = {
+                // TODO: Navigate to edit screen
+                showDetailSheet = false
+                scope.launch {
+                    snackbarHostState.showSnackbar("Edit feature coming soon!")
+                }
+            },
+            onDelete = { item ->
+                scope.launch {
+                    try {
+                        if (userId == null) return@launch
+
+                        db.collection("users")
+                            .document(userId)
+                            .collection("wardrobe")
+                            .document(item.id)
+                            .delete()
+                            .await()
+
+                        clothingItems = clothingItems.filter { it.id != item.id }
+
+                        val newStorageCount = clothingItems.size
+                        db.collection("users")
+                            .document(userId)
+                            .update("currentStorage", newStorageCount)
+                            .await()
+
+                        if (missionManager != null) {
+                            userProgress = missionManager.getUserProgress()
+                        }
+
+                        showDetailSheet = false
+                        selectedItem = null
+
+                        snackbarHostState.showSnackbar(
+                            message = "✓ Item removed",
+                            duration = SnackbarDuration.Short
+                        )
+                    } catch (e: Exception) {
+                        android.util.Log.e("Wardrobe", "❌ Failed to delete item", e)
+                        snackbarHostState.showSnackbar("Failed to delete")
+                    }
+                }
+            },
+            onMarkAsWorn = { item ->
+                scope.launch {
+                    try {
+                        if (userId == null) return@launch
+
+                        val newWorn = item.worn + 1
+                        val newLastWorn = System.currentTimeMillis()
+
+                        db.collection("users")
+                            .document(userId)
+                            .collection("wardrobe")
+                            .document(item.id)
+                            .update(
+                                mapOf(
+                                    "worn" to newWorn,
+                                    "lastWorn" to newLastWorn
+                                )
+                            )
+                            .await()
+
+                        clothingItems = clothingItems.map {
+                            if (it.id == item.id) {
+                                it.copy(worn = newWorn, lastWorn = newLastWorn)
+                            } else it
+                        }
+
+                        // Update selected item for detail sheet
+                        selectedItem = clothingItems.find { it.id == item.id }
+
+                        snackbarHostState.showSnackbar(
+                            message = "✓ Marked as worn!",
+                            duration = SnackbarDuration.Short
+                        )
+                    } catch (e: Exception) {
+                        android.util.Log.e("Wardrobe", "❌ Failed to mark as worn", e)
+                        snackbarHostState.showSnackbar("Failed to update")
+                    }
+                }
+            }
+        )
     }
 
     // Add Clothing Bottom Sheet
@@ -569,7 +787,6 @@ fun WardrobeScreen(
                 }
             },
             onTakePhoto = {
-                // Navigate to camera screen using navigation
                 onNavigate("camera/clothing")
                 showBottomSheet = false
             },
@@ -630,9 +847,6 @@ private fun WardrobeHeader(onNavigate: (String) -> Unit) {
                         color = Color.White
                     )
                 }
-
-                // Try-On Button
-
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -649,7 +863,13 @@ private fun WardrobeHeader(onNavigate: (String) -> Unit) {
 }
 
 @Composable
-private fun StatsCard(totalItems: Int, favoritesCount: Int) {
+private fun StorageStatsCard(
+    currentStorage: Int,
+    maxStorage: Int,
+    userLevel: Int,
+    favoritesCount: Int,
+    onUpgradeClick: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -659,15 +879,87 @@ private fun StatsCard(totalItems: Int, favoritesCount: Int) {
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            StatItem(value = "$totalItems", label = "Items", color = Color(0xFF1F2937))
-            StatItem(value = "$favoritesCount", label = "Favorites", color = Color(0xFF10B981))
-            StatItem(value = "0", label = "Outfits", color = Color(0xFF3B82F6))
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        "Wardrobe Storage",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1F2937)
+                    )
+                    Text(
+                        "Level $userLevel",
+                        fontSize = 12.sp,
+                        color = Color(0xFF6B7280)
+                    )
+                }
+
+                Text(
+                    "$currentStorage / $maxStorage",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (currentStorage >= maxStorage) Color(0xFFEF4444) else Color(0xFF10B981)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            val progress = (currentStorage.toFloat() / maxStorage).coerceIn(0f, 1f)
+            LinearProgressIndicator(
+                progress = progress,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(5.dp)),
+                color = when {
+                    progress >= 1f -> Color(0xFFEF4444)
+                    progress >= 0.8f -> Color(0xFFFBBF24)
+                    else -> Color(0xFF10B981)
+                },
+                trackColor = Color(0xFFE5E7EB)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                StatItem(value = "$currentStorage", label = "Items", color = Color(0xFF1F2937))
+                StatItem(value = "$favoritesCount", label = "Favorites", color = Color(0xFF10B981))
+                StatItem(value = "${maxStorage - currentStorage}", label = "Slots Left", color = Color(0xFF3B82F6))
+            }
+
+            if (currentStorage >= maxStorage * 0.8f) {
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = onUpgradeClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFD700)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.EmojiEvents,
+                        contentDescription = null,
+                        tint = Color.White
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (currentStorage >= maxStorage) "Wardrobe Full - Level Up!"
+                        else "Almost Full - Level Up!",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
     }
 }
@@ -732,7 +1024,9 @@ private fun ItemsGrid(
     filteredItems: List<ClothingItem>,
     selectedCategory: Category,
     onFavoriteToggle: (ClothingItem) -> Unit,
-    onMarkAsWorn: (ClothingItem) -> Unit
+    onMarkAsWorn: (ClothingItem) -> Unit,
+    onDeleteItem: (ClothingItem) -> Unit,
+    onViewDetails: (ClothingItem) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -773,7 +1067,9 @@ private fun ItemsGrid(
                     ClothingCard(
                         item = item,
                         onFavoriteClick = { onFavoriteToggle(item) },
-                        onMarkAsWorn = { onMarkAsWorn(item) }
+                        onMarkAsWorn = { onMarkAsWorn(item) },
+                        onDeleteItem = { onDeleteItem(item) },
+                        onViewDetails = { onViewDetails(item) }
                     )
                 }
             }
@@ -785,8 +1081,13 @@ private fun ItemsGrid(
 private fun ClothingCard(
     item: ClothingItem,
     onFavoriteClick: () -> Unit,
-    onMarkAsWorn: () -> Unit
+    onMarkAsWorn: () -> Unit,
+    onDeleteItem: () -> Unit,
+    onViewDetails: () -> Unit
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -794,139 +1095,490 @@ private fun ClothingCard(
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column {
-            ClothingImageSection(item, onFavoriteClick)
-            ClothingDetailsSection(item, onMarkAsWorn)
-        }
-    }
-}
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color(0xFFF9FAFB), Color(0xFFF3F4F6))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                val displayImage = item.thumbnailUri ?: item.processedImageUri ?: item.imageUri
 
-@Composable
-private fun ClothingImageSection(
-    item: ClothingItem,
-    onFavoriteClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(160.dp)
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(Color(0xFFF9FAFB), Color(0xFFF3F4F6))
-                )
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        val displayImage = item.thumbnailUri ?: item.processedImageUri ?: item.imageUri
+                if (displayImage != null) {
+                    AsyncImage(
+                        model = displayImage,
+                        contentDescription = item.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.ShoppingBag,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = Color(0xFF9CA3AF)
+                    )
+                }
 
-        if (displayImage != null) {
-            AsyncImage(
-                model = displayImage,
-                contentDescription = item.name,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Default.ShoppingBag,
-                contentDescription = null,
-                modifier = Modifier.size(48.dp),
-                tint = Color(0xFF9CA3AF)
-            )
-        }
+                // Top-left: Worn badge
+                if (item.worn > 0) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp),
+                        color = Color(0xFF10B981).copy(alpha = 0.9f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "${item.worn}×",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
 
-        IconButton(
-            onClick = onFavoriteClick,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(8.dp)
-                .size(32.dp)
-                .background(Color.White.copy(alpha = 0.9f), CircleShape)
-        ) {
-            Icon(
-                imageVector = if (item.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                contentDescription = "Favorite",
-                tint = if (item.isFavorite) Color(0xFFEF4444) else Color(0xFF9CA3AF),
-                modifier = Modifier.size(20.dp)
-            )
-        }
-    }
-}
+                // Top-right: Favorite only
+                IconButton(
+                    onClick = onFavoriteClick,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .size(36.dp)
+                        .background(Color.White.copy(alpha = 0.95f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = if (item.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = "Favorite",
+                        tint = if (item.isFavorite) Color(0xFFEF4444) else Color(0xFF9CA3AF),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
 
-@Composable
-private fun ClothingDetailsSection(
-    item: ClothingItem,
-    onMarkAsWorn: () -> Unit
-) {
-    Column(modifier = Modifier.padding(12.dp)) {
-        Text(
-            text = item.name,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color(0xFF1F2937),
-            maxLines = 1
-        )
+                // Bottom-right: More menu
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp)
+                ) {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(Color.White.copy(alpha = 0.95f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "More options",
+                            tint = Color(0xFF6B7280),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
 
-        if (item.brand.isNotEmpty()) {
-            Text(
-                text = item.brand,
-                fontSize = 12.sp,
-                color = Color(0xFF6B7280),
-                maxLines = 1
-            )
-        }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("View Details") },
+                            onClick = {
+                                showMenu = false
+                                onViewDetails()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Info, contentDescription = null)
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Delete", color = Color(0xFFEF4444)) },
+                            onClick = {
+                                showMenu = false
+                                showDeleteDialog = true
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = null,
+                                    tint = Color(0xFFEF4444)
+                                )
+                            }
+                        )
+                    }
+                }
+            }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (item.colors.isNotEmpty()) {
-            Text(
-                text = item.colors.joinToString(", "),
-                fontSize = 11.sp,
-                color = Color(0xFF10B981),
-                maxLines = 1
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Worn ${item.worn}×",
-                fontSize = 11.sp,
-                color = Color(0xFF6B7280)
-            )
-
-            item.lastWorn?.let { date ->
+            Column(modifier = Modifier.padding(12.dp)) {
                 Text(
-                    text = getRelativeTime(date),
-                    fontSize = 10.sp,
-                    color = Color(0xFF9CA3AF)
+                    text = item.name,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF1F2937),
+                    maxLines = 1
                 )
+
+                if (item.brand.isNotEmpty()) {
+                    Text(
+                        text = item.brand,
+                        fontSize = 12.sp,
+                        color = Color(0xFF6B7280),
+                        maxLines = 1
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (item.colors.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        item.colors.take(3).forEach { color ->
+                            Surface(
+                                color = Color(0xFFECFDF5),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    text = color,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    fontSize = 10.sp,
+                                    color = Color(0xFF10B981),
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                        if (item.colors.size > 3) {
+                            Surface(
+                                color = Color(0xFFF3F4F6),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    text = "+${item.colors.size - 3}",
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    fontSize = 10.sp,
+                                    color = Color(0xFF6B7280),
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                item.lastWorn?.let { date ->
+                    Text(
+                        text = "Last worn: ${getRelativeTime(date)}",
+                        fontSize = 10.sp,
+                        color = Color(0xFF9CA3AF)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                OutlinedButton(
+                    onClick = onMarkAsWorn,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFF10B981)
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Wore This", fontSize = 12.sp)
+                }
             }
         }
+    }
 
-        Spacer(modifier = Modifier.height(8.dp))
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = null,
+                    tint = Color(0xFFEF4444),
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    "Delete Item?",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    "Are you sure you want to remove \"${item.name}\" from your wardrobe? This action cannot be undone.",
+                    color = Color(0xFF6B7280)
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteDialog = false
+                        onDeleteItem()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFEF4444)
+                    )
+                ) {
+                    Text("Delete", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel", color = Color(0xFF6B7280))
+                }
+            }
+        )
+    }
+}
 
-        OutlinedButton(
-            onClick = onMarkAsWorn,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
-            contentPadding = PaddingValues(vertical = 8.dp),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = Color(0xFF10B981)
-            )
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ClothingDetailBottomSheet(
+    item: ClothingItem,
+    onDismiss: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: (ClothingItem) -> Unit,
+    onMarkAsWorn: (ClothingItem) -> Unit
+) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState())
         ) {
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("Wore This", fontSize = 12.sp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Item Details",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1F2937)
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close")
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFFF9FAFB)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val displayImage = item.processedImageUri ?: item.imageUri
+
+                    if (displayImage != null) {
+                        AsyncImage(
+                            model = displayImage,
+                            contentDescription = item.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.ShoppingBag,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = Color(0xFF9CA3AF)
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            DetailRow(label = "Name", value = item.name)
+
+            if (item.brand.isNotEmpty()) {
+                DetailRow(label = "Brand", value = item.brand)
+            }
+
+            DetailRow(label = "Category", value = item.category)
+
+            if (item.colors.isNotEmpty()) {
+                DetailRow(label = "Colors", value = item.colors.joinToString(", "))
+            }
+
+            if (item.pattern.isNotEmpty()) {
+                DetailRow(label = "Pattern", value = item.pattern)
+            }
+
+            item.season?.let { season ->
+                if (season.isNotEmpty()) {
+                    DetailRow(label = "Season", value = season)
+                }
+            }
+
+            DetailRow(label = "Times Worn", value = "${item.worn}×")
+
+            item.lastWorn?.let { date ->
+                DetailRow(label = "Last Worn", value = getRelativeTime(date))
+            }
+
+            if (item.notes.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Notes",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF6B7280)
+                )
+                Text(
+                    item.notes,
+                    fontSize = 14.sp,
+                    color = Color(0xFF1F2937),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { onMarkAsWorn(item) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFF10B981)
+                    )
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Wore This")
+                }
+
+                Button(
+                    onClick = onEdit,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF3B82F6)
+                    )
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Edit")
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedButton(
+                onClick = { showDeleteDialog = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color(0xFFEF4444)
+                ),
+                border = BorderStroke(1.dp, Color(0xFFEF4444))
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Delete Item")
+            }
+
+            Spacer(Modifier.height(24.dp))
         }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = null,
+                    tint = Color(0xFFEF4444),
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    "Delete Item?",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    "Are you sure you want to remove \"${item.name}\" from your wardrobe? This action cannot be undone.",
+                    color = Color(0xFF6B7280)
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteDialog = false
+                        onDelete(item)
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFEF4444)
+                    )
+                ) {
+                    Text("Delete", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel", color = Color(0xFF6B7280))
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color(0xFF6B7280),
+            modifier = Modifier.weight(0.4f)
+        )
+        Text(
+            text = value,
+            fontSize = 14.sp,
+            color = Color(0xFF1F2937),
+            modifier = Modifier.weight(0.6f),
+            textAlign = TextAlign.End
+        )
     }
 }
 
@@ -970,6 +1622,71 @@ private fun EmptyState(category: String) {
             textAlign = TextAlign.Center
         )
     }
+}
+
+@Composable
+fun UpgradeStorageDialog(
+    currentStorage: Int,
+    maxStorage: Int,
+    currentLevel: Int,
+    onDismiss: () -> Unit,
+    onGoToMissions: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                imageVector = Icons.Default.EmojiEvents,
+                contentDescription = null,
+                tint = Color(0xFFFFD700),
+                modifier = Modifier.size(48.dp)
+            )
+        },
+        title = {
+            Text(
+                "Wardrobe Full!",
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "You've reached your storage limit ($currentStorage/$maxStorage items)",
+                    textAlign = TextAlign.Center,
+                    color = Color(0xFF6B7280)
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "Level up to unlock more space!",
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Next level: +5 more slots",
+                    fontSize = 14.sp,
+                    color = Color(0xFF10B981),
+                    textAlign = TextAlign.Center
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onGoToMissions,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF10B981)
+                )
+            ) {
+                Text("Go to Missions", color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Later", color = Color(0xFF6B7280))
+            }
+        }
+    )
 }
 
 private fun getRelativeTime(timestamp: Long): String {
