@@ -44,6 +44,9 @@ fun SignUpScreen(
     var weight by remember { mutableStateOf("") }
     var height by remember { mutableStateOf("") }
 
+    // Terms checkbox
+    var agreedToTerms by remember { mutableStateOf(false) }
+
     // Validation error states
     var nameError by remember { mutableStateOf<String?>(null) }
     var emailError by remember { mutableStateOf<String?>(null) }
@@ -158,6 +161,12 @@ fun SignUpScreen(
         if (nameValidation != null || emailValidation != null || ageValidation != null ||
             gender.isEmpty() || weightValidation != null || heightValidation != null ||
             passwordValidation != null || confirmPasswordValidation != null) {
+            return
+        }
+
+        // Check if terms are agreed
+        if (!agreedToTerms) {
+            signUpError = "Please agree to the Terms of Service and Privacy Policy to continue"
             return
         }
 
@@ -563,10 +572,35 @@ fun SignUpScreen(
                 }
             }
 
+            // Terms and Conditions Checkbox
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = agreedToTerms,
+                    onCheckedChange = { agreedToTerms = it },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = Color(0xFF10B981),
+                        uncheckedColor = Color(0xFFD1D5DB),
+                        checkmarkColor = Color.White
+                    )
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "I agree to the Terms of Service and Privacy Policy",
+                    fontSize = 13.sp,
+                    color = if (agreedToTerms) Color(0xFF374151) else Color(0xFF6B7280),
+                    modifier = Modifier.clickable { agreedToTerms = !agreedToTerms }
+                )
+            }
+
             // Sign Up Button
             Button(
                 onClick = { handleSignUp() },
-                enabled = !loading,
+                enabled = !loading && agreedToTerms,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
@@ -602,20 +636,5 @@ fun SignUpScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .background(Color(0xFFF0FDF4), RoundedCornerShape(12.dp))
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                "By creating an account, you agree to our Terms of Service and Privacy Policy",
-                color = Color.Gray,
-                fontSize = 12.sp,
-                textAlign = TextAlign.Center
-            )
-        }
     }
 }

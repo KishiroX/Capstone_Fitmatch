@@ -5,7 +5,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -58,6 +57,7 @@ fun ClothingDetailsFormScreen(
     var colors by remember { mutableStateOf(detectedInfo.colors) }
     var pattern by remember { mutableStateOf(detectedInfo.pattern) }
     var season by remember { mutableStateOf<String?>(null) }
+    var preferences by remember { mutableStateOf<List<String>>(emptyList()) }
     var notes by remember { mutableStateOf("") }
     var isProcessing by remember { mutableStateOf(false) }
 
@@ -86,6 +86,7 @@ fun ClothingDetailsFormScreen(
                             colors = colors,
                             pattern = pattern,
                             season = season,
+                            preferences = preferences,
                             notes = notes,
                             imageUri = imageFile?.let { Uri.fromFile(it) }
                         )
@@ -167,6 +168,14 @@ fun ClothingDetailsFormScreen(
             SeasonSelector(
                 selectedSeason = season,
                 onSeasonSelected = { season = it }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Preference Selector (NEW)
+            PreferenceSelector(
+                selectedPreferences = preferences,
+                onPreferencesChanged = { preferences = it }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -544,6 +553,122 @@ private fun SeasonChip(
 }
 
 /**
+ * NEW: Preference Selector for wardrobe recommendations
+ * Tags items with style preferences to enable smart outfit matching
+ */
+@Composable
+private fun PreferenceSelector(
+    selectedPreferences: List<String>,
+    onPreferencesChanged: (List<String>) -> Unit
+) {
+    val preferenceOptions = listOf(
+        "Casual" to "👕",
+        "Formal" to "👔",
+        "Business" to "💼",
+        "Athletic" to "⚽",
+        "Party" to "🎉",
+        "Date Night" to "💝",
+        "Streetwear" to "🛹",
+        "Vintage" to "📻",
+        "Minimalist" to "⚪",
+        "Bohemian" to "🌿",
+        "Preppy" to "🎓",
+        "Edgy" to "⚡"
+    )
+
+    Column {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(bottom = 8.dp)
+        ) {
+            Text(
+                text = "Style Preferences",
+                style = MaterialTheme.typography.labelLarge
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "(for outfit recommendations)",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        // Info card explaining the feature
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "💡", style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Select styles to get matching outfit suggestions from your wardrobe",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalSpacing = 8.dp,
+            verticalSpacing = 8.dp
+        ) {
+            preferenceOptions.forEach { (preference, emoji) ->
+                val isSelected = selectedPreferences.contains(preference)
+                PreferenceChip(
+                    label = preference,
+                    emoji = emoji,
+                    isSelected = isSelected,
+                    onClick = {
+                        onPreferencesChanged(
+                            if (isSelected) {
+                                selectedPreferences - preference
+                            } else {
+                                selectedPreferences + preference
+                            }
+                        )
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PreferenceChip(
+    label: String,
+    emoji: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    FilterChip(
+        selected = isSelected,
+        onClick = onClick,
+        label = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = emoji)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(text = label)
+            }
+        },
+        leadingIcon = if (isSelected) {
+            { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
+        } else null,
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer
+        )
+    )
+}
+
+/**
  * Data class to hold form data
  */
 data class ClothingFormData(
@@ -553,6 +678,7 @@ data class ClothingFormData(
     val colors: List<String>,
     val pattern: String,
     val season: String?,
+    val preferences: List<String>, // NEW: Style preferences for recommendations
     val notes: String,
     val imageUri: Uri?
 )

@@ -42,6 +42,32 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import kotlin.math.*
 
+//jac
+import com.example.capstone.utils.FaceExtractor
+import com.example.capstone.utils.MannequinCompositor
+
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.*
+import androidx.compose.material.icons.filled.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.rememberAsyncImagePainter
+import com.example.capstone.api.MiragicClient
+import com.example.capstone.api.TryOnResult
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+
 // Data classes
 data class ClothingItemTryOn(
     val id: String = "",
@@ -95,195 +121,141 @@ fun OutfitState.updateWithSelection(item: ClothingItemTryOn): OutfitState {
 @Composable
 fun TryOnScreen(onNavigate: (String) -> Unit) {
     val context = LocalContext.current
-    val db = FirebaseFirestore.getInstance()
-    val auth = FirebaseAuth.getInstance()
-    val userId = auth.currentUser?.uid
     val scope = rememberCoroutineScope()
+    val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+    val db = FirebaseFirestore.getInstance()
 
-    val bodyAnalyzer = remember { BodyAnalyzer(context) }
-
-    LaunchedEffect(Unit) {
-        bodyAnalyzer.loadModel()
-    }
+    // Miragic API client
+    val miragicClient = remember { MiragicClient(context) }
 
     var outfit by remember { mutableStateOf(OutfitState()) }
     var activeCategory by remember { mutableStateOf(CategoryTryOn.TOPS) }
     var bodyScanUrl by remember { mutableStateOf<String?>(null) }
     var clothingItems by remember { mutableStateOf<List<ClothingItemTryOn>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    var isProcessingTryOn by remember { mutableStateOf(false) }
-    var tryOnResultBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    // Try-on state
+    var tryOnResult by remember { mutableStateOf<TryOnResult>(TryOnResult.Idle) }
+    var tryOnImageUrl by remember { mutableStateOf<String?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Load data
     LaunchedEffect(userId) {
-        if (userId != null) {
-            try {
-                val userDoc = db.collection("users").document(userId).get().await()
-                bodyScanUrl = userDoc.getString("bodyScanUrl")
+        try {
+            // Load body scan
+            val userDoc = db.collection("users").document(userId).get().await()
+            bodyScanUrl = userDoc.getString("bodyScanUrl")
 
-                val wardrobeSnapshot = db.collection("users")
-                    .document(userId)
-                    .collection("wardrobe")
-                    .get()
-                    .await()
+            // Load wardrobe
+            val wardrobeSnapshot = db.collection("users")
+                .document(userId)
+                .collection("wardrobe")
+                .get()
+                .await()
 
-                val firebaseItems = wardrobeSnapshot.documents.mapNotNull { doc ->
-                    try {
-                        ClothingItemTryOn(
-                            id = doc.id,
-                            name = doc.getString("name") ?: "",
-                            category = doc.getString("category") ?: "",
-                            colors = (doc.get("colors") as? List<*>)?.mapNotNull { it.toString() } ?: emptyList(),
-                            brand = doc.getString("brand") ?: "",
-                            imageUri = doc.getString("imageUri"),
-                            processedImageUri = doc.getString("processedImageUri"),
-                            thumbnailUri = doc.getString("thumbnailUri"),
-                            worn = (doc.getLong("worn") ?: 0).toInt(),
-                            isFavorite = doc.getBoolean("isFavorite") ?: false
-                        )
-                    } catch (e: Exception) {
-                        android.util.Log.e("TryOn", "Error parsing item ${doc.id}", e)
-                        null
-                    }
+            clothingItems = wardrobeSnapshot.documents.mapNotNull { doc ->
+                try {
+                    ClothingItemTryOn(
+                        id = doc.id,
+                        name = doc.getString("name") ?: "",
+                        category = doc.getString("category") ?: "",
+                        colors = (doc.get("colors") as? List<*>)?.mapNotNull { it.toString() } ?: emptyList(),
+                        brand = doc.getString("brand") ?: "",
+                        imageUri = doc.getString("imageUri"),
+                        processedImageUri = doc.getString("processedImageUri"),
+                        thumbnailUri = doc.getString("thumbnailUri"),
+                        worn = (doc.getLong("worn") ?: 0).toInt(),
+                        isFavorite = doc.getBoolean("isFavorite") ?: false
+                    )
+                } catch (e: Exception) {
+                    null
                 }
-
-                clothingItems = if (firebaseItems.isEmpty()) {
-                    android.util.Log.d("TryOn", "📦 Loading demo items")
-                    loadDemoClothingItems()
-                } else {
-                    firebaseItems
-                }
-
-            } catch (e: Exception) {
-                android.util.Log.e("TryOn", "Error loading data", e)
-                clothingItems = loadDemoClothingItems()
-                scope.launch {
-                    snackbarHostState.showSnackbar("Using demo wardrobe")
-                }
-            } finally {
-                isLoading = false
             }
-        } else {
-            clothingItems = loadDemoClothingItems()
+
+            isLoading = false
+
+        } catch (e: Exception) {
+            android.util.Log.e("TryOn", "Error loading data", e)
             isLoading = false
         }
     }
 
-    // ⭐ ENHANCED TRY-ON WITH MANUELA-STYLE IMPROVEMENTS
+    // Process try-on when outfit changes
     LaunchedEffect(outfit, bodyScanUrl) {
         if (bodyScanUrl == null) {
-            tryOnResultBitmap = null
+            tryOnResult = TryOnResult.Idle
+            tryOnImageUrl = null
             return@LaunchedEffect
         }
 
-        val selectedItem = outfit.tops ?: outfit.dress ?: outfit.bottoms ?: outfit.outerwear ?: outfit.shoes
-        if (selectedItem == null) {
-            tryOnResultBitmap = null
-            return@LaunchedEffect
-        }
+        // Check if combo try-on (top + bottom)
+        val hasTop = outfit.tops != null
+        val hasBottom = outfit.bottoms != null
+        val hasDress = outfit.dress != null
 
-        isProcessingTryOn = true
-        tryOnResultBitmap = null
-
-        try {
-            android.util.Log.d("TryOn", "🎯 Generating try-on for ${selectedItem.name}")
-
-            val clothingImageUri = selectedItem.processedImageUri ?: selectedItem.imageUri
-            if (clothingImageUri == null) {
-                android.util.Log.e("TryOn", "No image URI")
-                isProcessingTryOn = false
-                return@LaunchedEffect
-            }
-
-            val bodyScanBitmap = loadBitmapFromUri(context, bodyScanUrl!!)
-            var clothingBitmap = loadBitmapFromUri(context, clothingImageUri)
-
-            if (bodyScanBitmap == null || clothingBitmap == null) {
-                android.util.Log.e("TryOn", "Failed to load images")
-                isProcessingTryOn = false
-                return@LaunchedEffect
-            }
-
-            val poseResult = withContext(Dispatchers.Default) {
-                bodyAnalyzer.analyze(bodyScanBitmap)
-            }
-
-            if (poseResult == null) {
-                android.util.Log.e("TryOn", "❌ No pose detected")
+        if (hasDress) {
+            // Single item: Dress
+            val dressImageUrl = outfit.dress?.processedImageUri ?: outfit.dress?.imageUri
+            if (dressImageUrl != null) {
                 scope.launch {
-                    snackbarHostState.showSnackbar("Could not detect pose")
-                }
-                isProcessingTryOn = false
-                return@LaunchedEffect
-            }
-
-            android.util.Log.d("TryOn", "✅ Pose detected! Processing clothing...")
-
-            // ⭐ MANUELA-STYLE PROCESSING PIPELINE
-            clothingBitmap = withContext(Dispatchers.Default) {
-                var processed = clothingBitmap!!
-
-                // 1. Remove background
-                if (!hasTransparentBackground(processed)) {
-                    android.util.Log.d("TryOn", "🔧 Removing background...")
-                    processed = removeBackgroundFromClothing(processed)
-                }
-
-                // 2. Fix orientation
-                val rotationAngle = detectCorrectOrientation(processed, selectedItem.category)
-                if (rotationAngle != 0f) {
-                    android.util.Log.d("TryOn", "🔄 Auto-rotating ${rotationAngle}°")
-                    val rotateMatrix = Matrix().apply {
-                        postRotate(rotationAngle, processed.width / 2f, processed.height / 2f)
-                    }
-                    processed = Bitmap.createBitmap(processed, 0, 0, processed.width, processed.height, rotateMatrix, true)
-                }
-
-                // 3. Feather edges
-                android.util.Log.d("TryOn", "✨ Feathering edges...")
-                processed = featherClothingEdges(processed, 3)
-
-                // 4. ⭐ ADD DEPTH SHADING (MANUELA-STYLE!)
-                android.util.Log.d("TryOn", "🎨 Adding depth shading...")
-                processed = addSimpleDepth(processed)
-
-                // 5. Adjust lighting
-                android.util.Log.d("TryOn", "💡 Adjusting lighting...")
-                val bodyRegion = android.graphics.Rect(
-                    (bodyScanBitmap.width * 0.25f).toInt(),
-                    (bodyScanBitmap.height * 0.3f).toInt(),
-                    (bodyScanBitmap.width * 0.75f).toInt(),
-                    (bodyScanBitmap.height * 0.7f).toInt()
-                )
-                processed = adjustClothingLighting(processed, bodyScanBitmap, bodyRegion)
-
-                processed
-            }
-
-            // Apply overlay with improved scaling
-            val result = withContext(Dispatchers.Default) {
-                when(selectedItem.category) {
-                    "Tops" -> enhancedOverlayTop(bodyScanBitmap, clothingBitmap, poseResult)
-                    "Bottoms" -> enhancedOverlayBottoms(bodyScanBitmap, clothingBitmap, poseResult)
-                    "Dresses" -> enhancedOverlayDress(bodyScanBitmap, clothingBitmap, poseResult)
-                    "Shoes" -> enhancedOverlayShoes(bodyScanBitmap, clothingBitmap, poseResult)
-                    "Outerwear" -> enhancedOverlayOuterwear(bodyScanBitmap, clothingBitmap, poseResult)
-                    else -> bodyScanBitmap
+                    val resultUrl = miragicClient.singleTryOn(
+                        humanImageUrl = bodyScanUrl!!,
+                        clothImageUrl = dressImageUrl,
+                        garmentType = "full_body",
+                        onProgress = { tryOnResult = it }
+                    )
+                    tryOnImageUrl = resultUrl
                 }
             }
+        } else if (hasTop && hasBottom) {
+            // Combo try-on
+            val topImageUrl = outfit.tops?.processedImageUri ?: outfit.tops?.imageUri
+            val bottomImageUrl = outfit.bottoms?.processedImageUri ?: outfit.bottoms?.imageUri
 
-            tryOnResultBitmap = result
-            android.util.Log.d("TryOn", "✅ Try-on complete!")
-
-        } catch (e: Exception) {
-            android.util.Log.e("TryOn", "❌ Error: ${e.message}", e)
-            scope.launch {
-                snackbarHostState.showSnackbar("Try-on failed")
+            if (topImageUrl != null && bottomImageUrl != null) {
+                scope.launch {
+                    val resultUrl = miragicClient.comboTryOn(
+                        humanImageUrl = bodyScanUrl!!,
+                        topClothImageUrl = topImageUrl,
+                        bottomClothImageUrl = bottomImageUrl,
+                        onProgress = { tryOnResult = it }
+                    )
+                    tryOnImageUrl = resultUrl
+                }
             }
-        } finally {
-            isProcessingTryOn = false
+        } else if (hasTop) {
+            // Single item: Top
+            val topImageUrl = outfit.tops?.processedImageUri ?: outfit.tops?.imageUri
+            if (topImageUrl != null) {
+                scope.launch {
+                    val resultUrl = miragicClient.singleTryOn(
+                        humanImageUrl = bodyScanUrl!!,
+                        clothImageUrl = topImageUrl,
+                        garmentType = "upper_body",
+                        onProgress = { tryOnResult = it }
+                    )
+                    tryOnImageUrl = resultUrl
+                }
+            }
+        } else if (hasBottom) {
+            // Single item: Bottom
+            val bottomImageUrl = outfit.bottoms?.processedImageUri ?: outfit.bottoms?.imageUri
+            if (bottomImageUrl != null) {
+                scope.launch {
+                    val resultUrl = miragicClient.singleTryOn(
+                        humanImageUrl = bodyScanUrl!!,
+                        clothImageUrl = bottomImageUrl,
+                        garmentType = "lower_body",
+                        onProgress = { tryOnResult = it }
+                    )
+                    tryOnImageUrl = resultUrl
+                }
+            }
+        } else {
+            // No items selected
+            tryOnResult = TryOnResult.Idle
+            tryOnImageUrl = bodyScanUrl
         }
     }
 
@@ -302,23 +274,19 @@ fun TryOnScreen(onNavigate: (String) -> Unit) {
                     IconButton(
                         onClick = {
                             scope.launch {
-                                snackbarHostState.showSnackbar("Outfit saved!")
+                                saveOutfitToHistory(
+                                    db = db,
+                                    userId = userId,
+                                    outfit = outfit,
+                                    tryOnImageUrl = tryOnImageUrl,
+                                    snackbarHostState = snackbarHostState
+                                )
                             }
                         },
-                        enabled = tryOnResultBitmap != null
+                        enabled = tryOnImageUrl != null && tryOnImageUrl != bodyScanUrl &&
+                                (outfit.tops != null || outfit.bottoms != null || outfit.dress != null)
                     ) {
-                        Icon(
-                            Icons.Default.Favorite,
-                            contentDescription = "Save",
-                            tint = if (tryOnResultBitmap != null) Color.White else Color.White.copy(alpha = 0.5f)
-                        )
-                    }
-                    IconButton(onClick = {
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Share coming soon!")
-                        }
-                    }) {
-                        Icon(Icons.Default.Share, contentDescription = "Share")
+                        Icon(Icons.Default.Favorite, contentDescription = "Save")
                     }
                 },
                 backgroundColor = Color(0xFF10B981),
@@ -333,89 +301,197 @@ fun TryOnScreen(onNavigate: (String) -> Unit) {
                 .padding(padding)
                 .background(Color(0xFFF9FAFB))
         ) {
-            // Try-On Display
+            // Try-On Display with Miragic AI
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(380.dp)
+                    .height(420.dp)
                     .background(Color(0xFFE5E7EB)),
                 contentAlignment = Alignment.Center
             ) {
-                when {
-                    isProcessingTryOn -> {
+                when (val result = tryOnResult) {
+                    is TryOnResult.Loading -> {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.padding(32.dp)
                         ) {
-                            CircularProgressIndicator(color = Color(0xFF10B981), modifier = Modifier.size(48.dp))
+                            CircularProgressIndicator(
+                                color = Color(0xFF10B981),
+                                modifier = Modifier.size(48.dp)
+                            )
                             Spacer(modifier = Modifier.height(16.dp))
-                            Text("🎯 AI Processing...", textAlign = TextAlign.Center, color = Color.Gray, fontWeight = FontWeight.Medium)
+                            Text(
+                                "🎯 Preparing AI Try-On...",
+                                textAlign = TextAlign.Center,
+                                color = Color.Gray,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
-                    tryOnResultBitmap != null -> {
-                        Image(
-                            bitmap = tryOnResultBitmap!!.asImageBitmap(),
-                            contentDescription = "Try-On Result",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit
-                        )
 
-                        Surface(
-                            modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFF10B981).copy(alpha = 0.9f)
+                    is TryOnResult.Processing -> {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(32.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text("AI Enhanced", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-
-                        if (outfit.tops != null || outfit.dress != null || outfit.bottoms != null || outfit.shoes != null || outfit.outerwear != null) {
-                            Column(
+                            CircularProgressIndicator(
+                                color = Color(0xFF10B981),
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                "✨ AI Processing...",
+                                textAlign = TextAlign.Center,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LinearProgressIndicator(
+                                progress = result.progress / 100f,
                                 modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(12.dp)
-                                    .background(Color.White.copy(alpha = 0.95f), RoundedCornerShape(10.dp))
-                                    .padding(10.dp)
+                                    .width(200.dp)
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp)),
+                                color = Color(0xFF10B981),
+                                backgroundColor = Color(0xFFE5E7EB)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "${result.progress}%",
+                                color = Color.Gray,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+
+                    is TryOnResult.Success -> {
+                        tryOnImageUrl?.let { imageUrl ->
+                            Image(
+                                painter = rememberAsyncImagePainter(imageUrl),
+                                contentDescription = "Try-On Result",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit
+                            )
+
+                            // AI Badge
+                            Surface(
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(12.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFF10B981).copy(alpha = 0.95f)
                             ) {
-                                outfit.dress?.let { Text("👗", fontSize = 16.sp) }
-                                outfit.tops?.let { Text("👕", fontSize = 16.sp) }
-                                outfit.bottoms?.let { Text("👖", fontSize = 16.sp) }
-                                outfit.outerwear?.let { Text("🧥", fontSize = 16.sp) }
-                                outfit.shoes?.let { Text("👟", fontSize = 16.sp) }
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        "Miragic AI",
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }
-                    bodyScanUrl == null -> {
+
+                    is TryOnResult.Error -> {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
                             modifier = Modifier.padding(32.dp)
                         ) {
-                            Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.Gray)
+                            Icon(
+                                Icons.Default.Error,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = Color(0xFFEF4444)
+                            )
                             Spacer(modifier = Modifier.height(16.dp))
-                            Text("Complete your body scan first", textAlign = TextAlign.Center, color = Color.Gray, fontWeight = FontWeight.Medium)
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                "Try-On Failed",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFEF4444)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                result.message,
+                                textAlign = TextAlign.Center,
+                                color = Color.Gray,
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+
+                            // Show debug info in development
+                            Text(
+                                "Debug: Check logcat for details",
+                                textAlign = TextAlign.Center,
+                                color = Color.Gray,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
                             Button(
-                                onClick = { onNavigate("scan") },
-                                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981))
+                                onClick = {
+                                    scope.launch {
+                                        // Retry by resetting outfit
+                                        val tempOutfit = outfit
+                                        outfit = OutfitState()
+                                        kotlinx.coroutines.delay(100)
+                                        outfit = tempOutfit
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    backgroundColor = Color(0xFF10B981)
+                                )
                             ) {
-                                Text("Start Scan", color = Color.White)
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Retry", color = Color.White)
                             }
                         }
                     }
-                    else -> {
-                        Image(
-                            painter = rememberAsyncImagePainter(bodyScanUrl),
-                            contentDescription = "Body Scan",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit
-                        )
+
+                    TryOnResult.Idle -> {
+                        if (bodyScanUrl == null) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Person,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(64.dp),
+                                    tint = Color.Gray
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    "Complete your body scan first",
+                                    textAlign = TextAlign.Center,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(onClick = { onNavigate("scan") }) {
+                                    Text("Start Scan")
+                                }
+                            }
+                        } else {
+                            Image(
+                                painter = rememberAsyncImagePainter(bodyScanUrl),
+                                contentDescription = "Body Scan",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
                     }
                 }
             }
@@ -433,17 +509,11 @@ fun TryOnScreen(onNavigate: (String) -> Unit) {
                         colors = ButtonDefaults.buttonColors(
                             backgroundColor = if (activeCategory == category) Color(0xFF10B981) else Color.White
                         ),
-                        shape = RoundedCornerShape(12.dp),
-                        elevation = ButtonDefaults.elevation(
-                            defaultElevation = if (activeCategory == category) 4.dp else 2.dp
-                        ),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
                             "${category.icon} ${category.label}",
-                            color = if (activeCategory == category) Color.White else Color.Black,
-                            fontWeight = if (activeCategory == category) FontWeight.Bold else FontWeight.Normal,
-                            fontSize = 14.sp
+                            color = if (activeCategory == category) Color.White else Color.Black
                         )
                     }
                 }
@@ -453,28 +523,33 @@ fun TryOnScreen(onNavigate: (String) -> Unit) {
 
             // Clothing items
             if (isLoading) {
-                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
                     CircularProgressIndicator(color = Color(0xFF10B981))
                 }
             } else {
                 val filteredItems = clothingItems.filter { it.category == activeCategory.key }
+
                 if (filteredItems.isEmpty()) {
-                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
-                            Icon(Icons.Default.ShoppingBag, contentDescription = null, modifier = Modifier.size(48.dp), tint = Color.Gray)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.ShoppingBag,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = Color.Gray
+                            )
                             Spacer(modifier = Modifier.height(16.dp))
-                            Text("No ${activeCategory.label}", color = Color.Gray, fontWeight = FontWeight.Medium, fontSize = 16.sp)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("Add items to your wardrobe", fontSize = 13.sp, color = Color.Gray)
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(
-                                onClick = { onNavigate("wardrobe") },
-                                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981))
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Add Items", color = Color.White)
-                            }
+                            Text("No ${activeCategory.label}", color = Color.Gray)
                         }
                     }
                 } else {
@@ -511,27 +586,37 @@ fun TryOnScreen(onNavigate: (String) -> Unit) {
                     OutlinedButton(
                         onClick = {
                             outfit = OutfitState()
-                            tryOnResultBitmap = null
+                            tryOnImageUrl = bodyScanUrl
                         },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Refresh, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Reset")
                     }
+
                     Button(
                         onClick = {
                             scope.launch {
-                                snackbarHostState.showSnackbar("Outfit saved!")
+                                saveOutfitToHistory(
+                                    db = db,
+                                    userId = userId,
+                                    outfit = outfit,
+                                    tryOnImageUrl = tryOnImageUrl,
+                                    snackbarHostState = snackbarHostState
+                                )
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981)),
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color(0xFF10B981)
+                        ),
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
-                        enabled = tryOnResultBitmap != null
+                        enabled = tryOnImageUrl != null && tryOnImageUrl != bodyScanUrl &&
+                                (outfit.tops != null || outfit.bottoms != null || outfit.dress != null)
                     ) {
-                        Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
+                        Icon(Icons.Default.Favorite, contentDescription = null, tint = Color.White)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Save Outfit", color = Color.White)
                     }
@@ -611,6 +696,91 @@ fun ClothingCardTryOn(item: ClothingItemTryOn, isSelected: Boolean, onSelect: (C
 }
 
 // ========== HELPER FUNCTIONS ==========
+
+private suspend fun saveOutfitToHistory(
+    db: FirebaseFirestore,
+    userId: String,
+    outfit: OutfitState,
+    tryOnImageUrl: String?,
+    snackbarHostState: SnackbarHostState
+) {
+    try {
+        android.util.Log.d("TryOn", "Starting to save outfit to history...")
+
+        // Build outfit name based on selected items
+        val itemsList = mutableListOf<String>()
+        val fromWardrobeList = mutableListOf<String>()
+
+        outfit.tops?.let {
+            itemsList.add("👕")
+            fromWardrobeList.add(it.name)
+            android.util.Log.d("TryOn", "Added top: ${it.name}")
+        }
+        outfit.bottoms?.let {
+            itemsList.add("👖")
+            fromWardrobeList.add(it.name)
+            android.util.Log.d("TryOn", "Added bottom: ${it.name}")
+        }
+        outfit.dress?.let {
+            itemsList.add("👗")
+            fromWardrobeList.add(it.name)
+            android.util.Log.d("TryOn", "Added dress: ${it.name}")
+        }
+        outfit.shoes?.let {
+            itemsList.add("👟")
+            fromWardrobeList.add(it.name)
+            android.util.Log.d("TryOn", "Added shoes: ${it.name}")
+        }
+        outfit.outerwear?.let {
+            itemsList.add("🧥")
+            fromWardrobeList.add(it.name)
+            android.util.Log.d("TryOn", "Added outerwear: ${it.name}")
+        }
+
+        // Generate outfit name
+        val outfitName = when {
+            outfit.dress != null -> "${outfit.dress.name} Outfit"
+            outfit.tops != null && outfit.bottoms != null -> "${outfit.tops.name} & ${outfit.bottoms.name}"
+            outfit.tops != null -> "${outfit.tops.name} Look"
+            outfit.bottoms != null -> "${outfit.bottoms.name} Style"
+            else -> "My Outfit"
+        }
+
+        android.util.Log.d("TryOn", "Outfit name: $outfitName")
+        android.util.Log.d("TryOn", "Try-on image URL: $tryOnImageUrl")
+
+        // Create outfit history document
+        val outfitData = hashMapOf(
+            "name" to outfitName,
+            "occasion" to "Casual",
+            "theme" to "Everyday",
+            "weather" to "N/A",
+            "timestamp" to com.google.firebase.Timestamp.now(),
+            "items" to itemsList,
+            "fromWardrobe" to fromWardrobeList,
+            "confidence" to 95,
+            "worn" to false,
+            "isFavorite" to false,
+            "tryOnImageUrl" to (tryOnImageUrl ?: "")
+        )
+
+        android.util.Log.d("TryOn", "Saving to Firestore: users/$userId/outfitHistory")
+
+        // Save to Firestore
+        val docRef = db.collection("users")
+            .document(userId)
+            .collection("outfitHistory")
+            .add(outfitData)
+            .await()
+
+        android.util.Log.d("TryOn", "✅ Successfully saved with ID: ${docRef.id}")
+        snackbarHostState.showSnackbar("✅ Outfit saved to history!")
+
+    } catch (e: Exception) {
+        android.util.Log.e("TryOn", "❌ Error saving outfit to history", e)
+        snackbarHostState.showSnackbar("❌ Failed to save outfit: ${e.message}")
+    }
+}
 
 private fun loadDemoClothingItems(): List<ClothingItemTryOn> {
     return listOf(

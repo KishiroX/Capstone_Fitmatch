@@ -134,4 +134,14 @@ dependencies {
     implementation ("androidx.navigation:navigation-compose:2.5.3")
 
 
+    //face detection
+    implementation("com.google.mlkit:face-detection:16.1.6")
+
+// Retrofit for API calls
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+    // Coroutines (already have this, but ensure it's there)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }

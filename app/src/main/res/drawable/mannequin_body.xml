@@ -1,0 +1,35 @@
+<!-- res/drawable/mannequin_body.xml -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="500dp"
+    android:viewportWidth="200"
+    android:viewportHeight="500">
+
+    <!-- Head circle (will be replaced with user face) -->
+    <path
+        android:fillColor="#E5E7EB"
+        android:pathData="M100,50 a25,25 0 1,1 0,50 a25,25 0 1,1 0,-50"/>
+
+    <!-- Neck -->
+    <path
+        android:fillColor="#D1D5DB"
+        android:pathData="M90,100 L110,100 L108,120 L92,120 Z"/>
+
+    <!-- Shoulders & Torso -->
+    <path
+        android:fillColor="#E5E7EB"
+        android:pathData="M60,120 L140,120 L135,280 L65,280 Z"/>
+
+    <!-- Arms -->
+    <path
+        android:fillColor="#D1D5DB"
+        android:pathData="M50,130 L60,120 L65,250 L55,250 Z"/>
+    <path
+        android:fillColor="#D1D5DB"
+        android:pathData="M150,130 L140,120 L135,250 L145,250 Z"/>
+
+    <!-- Hips & Legs -->
+    <path
+        android:fillColor="#E5E7EB"
+        android:pathData="M70,280 L130,280 L125,480 L115,480 L115,350 L85,350 L85,480 L75,480 Z"/>
+</vector>
